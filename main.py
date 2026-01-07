@@ -19,6 +19,17 @@ import requests  # Added for DeepInfra TTS
 
 app = FastAPI()
 
+
+@app.get("/")
+async def root():
+    return {"message": "AI Duet FastAPI Server", "status": "running"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "timestamp": time.time()}
+
+
 # ---------- Utilities ----------
 
 
