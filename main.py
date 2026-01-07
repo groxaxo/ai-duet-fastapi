@@ -271,8 +271,8 @@ llm = LLM()
 stt = STT()
 
 DEEPINFRA_API_KEY: Optional[str] = os.getenv("DEEPINFRA_API_KEY")  # Set env var
-tts_en = TTS(api_key=DEEPINFRA_API_KEY, lang="en")
-tts_es = TTS(api_key=DEEPINFRA_API_KEY, lang="es")  # Spanish
+tts_en = TTS(api_key=DEEPINFRA_API_KEY, lang="en")  # type: ignore
+tts_es = TTS(api_key=DEEPINFRA_API_KEY, lang="es")  # Spanish  # type: ignore
 
 sessions: Dict[str, Session] = {}
 
