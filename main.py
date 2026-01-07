@@ -9,12 +9,12 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import webrtcvad
+import webrtcvad  # type: ignore
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
-from faster_whisper import WhisperModel
-import soundfile as sf
+from faster_whisper import WhisperModel  # type: ignore
+import soundfile as sf  # type: ignore
 import requests  # Added for DeepInfra TTS
 
 app = FastAPI()
@@ -94,7 +94,7 @@ class LLM:
         content = resp.choices[0].message.content
         if content is None:
             return ""
-        return content.strip()
+        return content.strip()  # type: ignore
 
 
 # ---------- STT (faster-whisper) ----------
