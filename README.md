@@ -16,6 +16,18 @@ AI Duet enables two AI agents to have autonomous conversations while allowing us
 - **Director Controls**: Set max turns, turn length, stop phrases, and conversation rules
 - **Multiple LLM Providers**: OpenAI, Fireworks, Ollama, or any OpenAI-compatible endpoint
 - **Flexible STT/TTS**: Local (faster-whisper + Kokoro) or cloud (DeepInfra)
+- **Futuristic UI**: Modern glassmorphism design with smooth animations and intuitive controls
+
+### DeepInfra TTS Models (New!)
+- **Kokoro-82M**: Fast and efficient, Apache-licensed, 82M parameters ($0.62/M chars)
+- **Chatterbox Turbo**: State-of-the-art expressive TTS with paralinguistic tags ($1.00/M chars)
+- **Orpheus-3b-0.1-ft**: Premium quality, Llama-based speech model ($7.00/M chars)
+
+### DeepInfra STT - Whisper Turbo (New!)
+- **8x faster** than Whisper Large-v3 with only minor accuracy trade-off
+- 809M parameters, 4 decoder layers optimized for speed
+- Perfect for real-time, interactive applications
+- Cost-effective at ~$0.0002/minute
 
 ### Agent Customization
 - Modify system prompts on-the-fly
@@ -123,12 +135,26 @@ export WHISPER_DEVICE="cpu"
 export KOKORO_LANG="a"
 ```
 
-#### DeepInfra (Cloud)
+#### DeepInfra (Cloud) - **Recommended for Production**
 ```bash
 export STT_PROVIDER="deepinfra"
 export TTS_PROVIDER="deepinfra"
 export DEEPINFRA_API_KEY="your_key"
+
+# STT Model - Whisper Turbo (Fast & Accurate)
+export DEEPINFRA_WHISPER_MODEL="openai/whisper-large-v3-turbo"
+
+# TTS Model Options:
+# - hexgrad/Kokoro-82M (Fast & Efficient, $0.62/M chars)
+# - resemblyai/chatterbox-turbo (Expressive, $1.00/M chars)
+# - canopylabs/orpheus-3b-0.1-ft (Premium Quality, $7.00/M chars)
+export DEEPINFRA_TTS_MODEL="hexgrad/Kokoro-82M"
+
+# Language code for Kokoro model only
+export KOKORO_LANG="a"
 ```
+
+**Note**: Whisper Turbo is ~8x faster than regular Whisper Large-v3 with minimal accuracy loss, making it ideal for real-time applications.
 
 ### Memory Configuration
 
@@ -141,6 +167,15 @@ export MEMORY_DEFAULT_MODE="lex"  # lex, sem, or hyb
 ## Usage
 
 ### Web Interface
+
+![AI Duet Futuristic UI](https://github.com/user-attachments/assets/24e06fe1-7014-4720-baa0-00686c29382e)
+
+The new **futuristic UI** features:
+- **Glassmorphism design** with blur effects and gradient accents
+- **Smooth animations** for all interactions
+- **Dark theme** optimized for extended use
+- **Responsive layout** that adapts to different screen sizes
+- **Real-time status indicators** with animated visual feedback
 
 The web UI provides a comprehensive control panel with:
 
@@ -241,9 +276,29 @@ Connect to `ws://localhost:8000/ws/{session_id}`
 Serves the web UI (index.html)
 
 ### `GET /voices`
-Returns list of available TTS voices
+Returns list of available TTS voices for the current provider
 ```json
 {"voices": ["af_heart", "am_michael", "am_adam", "af_sky", ...]}
+```
+
+### `GET /tts_models`
+Returns list of available TTS models (DeepInfra only)
+```json
+{
+  "models": ["hexgrad/Kokoro-82M", "resemblyai/chatterbox-turbo", "canopylabs/orpheus-3b-0.1-ft"],
+  "current": "hexgrad/Kokoro-82M"
+}
+```
+
+### `GET /tts_info`
+Returns current TTS provider configuration
+```json
+{
+  "provider": "deepinfra",
+  "model": "hexgrad/Kokoro-82M",
+  "voices": ["af_heart", "am_michael", ...],
+  "available_models": [...]
+}
 ```
 
 ### `WS /ws/{session_id}`
@@ -283,7 +338,9 @@ ai-duet-fastapi/
 
 - **LLMProvider**: Unified interface for OpenAI/Fireworks/Ollama
 - **STTLocalFasterWhisper**: Local speech-to-text
+- **STTDeepInfraWhisper**: Cloud-based Whisper Turbo STT
 - **TTSLocalKokoro**: Local text-to-speech
+- **TTSDeepInfra**: Unified cloud TTS supporting multiple models
 - **MemvidAgentMemory**: Per-agent persistent memory
 - **VADSegmenter**: Voice activity detection
 - **Session**: Manages conversation state
@@ -292,7 +349,9 @@ ai-duet-fastapi/
 
 ## Performance Considerations
 
+- **DeepInfra Whisper Turbo**: 8x faster than Large-v3, ~200ms latency for real-time STT
 - **Local STT**: faster-whisper on CPU is fast for "small" model
+- **DeepInfra TTS**: Low-latency streaming, Kokoro-82M at $0.62/M chars
 - **Local TTS**: Kokoro provides good quality with reasonable latency
 - **Memory**: Transcript limited to last 30 messages per agent for context
 - **Concurrency**: Async/await for non-blocking operations

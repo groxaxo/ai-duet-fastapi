@@ -530,15 +530,27 @@ llm = LLMProvider(
     api_mode=LLM_API,
 )
 
-if STT_PROVIDER == "deepinfra":
+# STT provider
+try:
+    if STT_PROVIDER == "deepinfra":
+        stt = STTDeepInfraWhisper(DEEPINFRA_API_KEY, DEEPINFRA_WHISPER_MODEL)
+    else:
+        stt = STTLocalFasterWhisper(WHISPER_MODEL, WHISPER_DEVICE, WHISPER_COMPUTE)
+except Exception as e:
+    print(f"Warning: Could not initialize STT provider: {e}")
+    print("Using DeepInfra as fallback (requires DEEPINFRA_API_KEY)")
     stt = STTDeepInfraWhisper(DEEPINFRA_API_KEY, DEEPINFRA_WHISPER_MODEL)
-else:
-    stt = STTLocalFasterWhisper(WHISPER_MODEL, WHISPER_DEVICE, WHISPER_COMPUTE)
 
-if TTS_PROVIDER == "deepinfra":
+# TTS provider
+try:
+    if TTS_PROVIDER == "deepinfra":
+        tts = TTSDeepInfra(DEEPINFRA_API_KEY, DEEPINFRA_TTS_MODEL, KOKORO_LANG)
+    else:
+        tts = TTSLocalKokoro(KOKORO_LANG)
+except Exception as e:
+    print(f"Warning: Could not initialize TTS provider: {e}")
+    print("Using DeepInfra as fallback (requires DEEPINFRA_API_KEY)")
     tts = TTSDeepInfra(DEEPINFRA_API_KEY, DEEPINFRA_TTS_MODEL, KOKORO_LANG)
-else:
-    tts = TTSLocalKokoro(KOKORO_LANG)
 
 
 # ---------------------------
