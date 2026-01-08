@@ -259,6 +259,9 @@ class LLMProvider:
             kwargs["base_url"] = base_url
         if api_key:
             kwargs["api_key"] = api_key
+        else:
+            # Use a dummy key to avoid initialization error, will fail at generation time
+            kwargs["api_key"] = "dummy_key_not_set"
         self.client = OpenAI(**kwargs)
         self.model = model
         self.api_mode = api_mode  # "responses" or "chat"
