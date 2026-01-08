@@ -84,3 +84,13 @@ dmypy.json
 
 # Pyre
 .pyre/
+
+# Backup files
+*_old.py
+*_old.md
+*.backup
+test_server.py
+
+# Memory storage
+memories/
+*.mv2
