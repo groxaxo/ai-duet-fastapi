@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import webrtcvad  # type: ignore
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from faster_whisper import WhisperModel  # type: ignore
@@ -18,10 +20,22 @@ import soundfile as sf  # type: ignore
 import requests  # Added for DeepInfra TTS
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
 async def root():
+    # Serve index.html if it exists
+    index_path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
     return {"message": "AI Duet FastAPI Server", "status": "running"}
 
 
@@ -29,6 +43,20 @@ async def root():
 async def health():
     return {"status": "healthy", "timestamp": time.time()}
 
+
+# ---------- Configuration ----------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "").strip()
+FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY", "")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "fireworks").lower()  # "openai", "fireworks", "ollama"
+LLM_MODEL = os.getenv("LLM_MODEL", "accounts/fireworks/models/llama-v3p1-405b-instruct")
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+
+WHISPER_MODEL = os.getenv("WHISPER_MODEL_SIZE", "small")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+
+DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
 
 # ---------- Utilities ----------
 
@@ -59,24 +87,51 @@ def b64d(s: str) -> bytes:
     return base64.b64decode(s.encode("utf-8"))
 
 
-# ---------- LLM (Fireworks AI with Llama v3.1) ----------
+# ---------- LLM Provider ----------
 
 
 class LLM:
     def __init__(
-        self, model: str = "accounts/fireworks/models/llama-v3p1-405b-instruct"
+        self, 
+        provider: str = "fireworks",
+        model: str = "accounts/fireworks/models/llama-v3p1-405b-instruct",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None
     ):
-        self.client = OpenAI(
-            base_url="https://api.fireworks.ai/inference/v1",
-            api_key=os.getenv("FIREWORKS_API_KEY"),
-        )
+        self.provider = provider
         self.model = model
+        
+        # Configure based on provider
+        if provider == "openai":
+            self.client = OpenAI(
+                api_key=api_key or OPENAI_API_KEY,
+                base_url=base_url if base_url else None
+            )
+        elif provider == "fireworks":
+            self.client = OpenAI(
+                base_url="https://api.fireworks.ai/inference/v1",
+                api_key=api_key or FIREWORKS_API_KEY,
+            )
+        elif provider == "ollama":
+            self.client = OpenAI(
+                base_url=base_url or OPENAI_BASE_URL or "http://localhost:11434/v1",
+                api_key=api_key or "ollama",
+            )
+        else:
+            # Default to custom base_url setup
+            kwargs = {}
+            if base_url:
+                kwargs["base_url"] = base_url
+            if api_key:
+                kwargs["api_key"] = api_key
+            self.client = OpenAI(**kwargs)
 
     def generate(
         self,
         instructions: str,
         messages: List[Dict[str, Any]],
         max_output_tokens: int = 250,
+        temperature: float = 0.7,
     ) -> str:
         from typing import cast
         from openai.types.chat import ChatCompletionMessageParam
@@ -89,6 +144,7 @@ class LLM:
             model=self.model,
             messages=typed_msgs,  # type: ignore
             max_tokens=max_output_tokens,
+            temperature=temperature,
         )
 
         content = resp.choices[0].message.content
@@ -240,6 +296,15 @@ class Agent:
 
 
 @dataclass
+class Director:
+    instructions: str = ""
+    max_turns: int = 200
+    turn_length: str = "medium"  # short|medium|long
+    stop_phrase: str = ""
+    delay_between_turns: float = 0.35  # Delay in seconds between agent replies
+
+
+@dataclass
 class Session:
     session_id: str
     agents: Dict[str, Agent]
@@ -247,6 +312,7 @@ class Session:
     running: bool = False
     next_speaker: str = "A"
     cancel_speaking: asyncio.Event = field(default_factory=asyncio.Event)
+    director: Director = field(default_factory=Director)
 
 
 def format_messages_for_agent(session: Session, agent_id: str) -> List[Dict[str, Any]]:
@@ -265,9 +331,18 @@ def format_messages_for_agent(session: Session, agent_id: str) -> List[Dict[str,
     return out[-40:]
 
 
+def max_tokens_from_turn_length(turn_length: str) -> int:
+    tl = (turn_length or "medium").lower()
+    if tl == "short":
+        return 160
+    if tl == "long":
+        return 420
+    return 260
+
+
 # ---------- Globals ----------
 
-llm = LLM()
+llm = LLM(provider=LLM_PROVIDER, model=LLM_MODEL)
 stt = STT()
 
 DEEPINFRA_API_KEY: Optional[str] = os.getenv("DEEPINFRA_API_KEY")  # Set env var
@@ -306,11 +381,20 @@ async def speak_agent_turn(ws: WebSocket, session: Session, agent_id: str):
     agent = session.agents[agent_id]
     msgs = format_messages_for_agent(session, agent_id)
 
+    # Build instructions with director rules
+    instructions = agent.instructions.strip()
+    if session.director.instructions.strip():
+        instructions += "\n\n[Director rules]\n" + session.director.instructions.strip()
+
+    # Get max tokens based on turn length
+    max_tokens = max_tokens_from_turn_length(session.director.turn_length)
+
     text = await asyncio.to_thread(
         llm.generate,
-        agent.instructions,
+        instructions,
         msgs,
-        250,
+        max_tokens,
+        LLM_TEMPERATURE,
     )
     if not text:
         text = "(...)"
@@ -328,6 +412,11 @@ async def speak_agent_turn(ws: WebSocket, session: Session, agent_id: str):
             }
         )
     )
+
+    # Check for stop phrase
+    sp = (session.director.stop_phrase or "").strip()
+    if sp and sp in text:
+        session.running = False
 
     if session.cancel_speaking.is_set():
         return
@@ -350,17 +439,34 @@ async def speak_agent_turn(ws: WebSocket, session: Session, agent_id: str):
     )
 
 
-async def duet_loop(ws: WebSocket, session: Session, max_turns: int = 200):
+async def duet_loop(ws: WebSocket, session: Session):
     session.running = True
     turns = 0
+    max_turns = max(1, int(session.director.max_turns or 200))
+    
+    # Get list of agent IDs for rotation
+    agent_ids = list(session.agents.keys())
+    if not agent_ids:
+        session.running = False
+        return
+    
+    current_index = agent_ids.index(session.next_speaker) if session.next_speaker in agent_ids else 0
+
     while session.running and turns < max_turns:
         session.cancel_speaking.clear()
-        agent_id = session.next_speaker
+        agent_id = agent_ids[current_index]
         await speak_agent_turn(ws, session, agent_id)
-        session.next_speaker = "B" if agent_id == "A" else "A"
+        
+        # Move to next agent in rotation
+        current_index = (current_index + 1) % len(agent_ids)
+        session.next_speaker = agent_ids[current_index]
+        
         turns += 1
-        await asyncio.sleep(0.05)
+        # Use configurable delay from director settings
+        await asyncio.sleep(session.director.delay_between_turns)
+
     session.running = False
+    await ws.send_text(json.dumps({"type": "duet_ended", "turns": turns}))
 
 
 # ---------- WebSocket ----------
@@ -374,25 +480,33 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
     vad = VADSegmenter()
     duet_task: Optional[asyncio.Task] = None
 
-    try:
-        await ws.send_text(
-            json.dumps(
-                {
-                    "type": "session_state",
-                    "session_id": session_id,
-                    "agents": {
-                        k: {
-                            "name": a.name,
-                            "instructions": a.instructions,
-                            "voice": a.voice,
-                            "lang": a.lang,
-                        }
-                        for k, a in session.agents.items()
-                    },
-                }
-            )
+    # Send initial session state
+    await ws.send_text(
+        json.dumps(
+            {
+                "type": "session_state",
+                "session_id": session_id,
+                "agents": {
+                    k: {
+                        "name": a.name,
+                        "instructions": a.instructions,
+                        "voice": a.voice,
+                        "lang": a.lang,
+                    }
+                    for k, a in session.agents.items()
+                },
+                "director": {
+                    "instructions": session.director.instructions,
+                    "max_turns": session.director.max_turns,
+                    "turn_length": session.director.turn_length,
+                    "stop_phrase": session.director.stop_phrase,
+                    "delay_between_turns": session.director.delay_between_turns,
+                },
+            }
         )
+    )
 
+    try:
         while True:
             msg = await ws.receive_text()
             data = json.loads(msg)
@@ -425,11 +539,77 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         session.agents[agent_id].voice = data["voice"]
                     if "lang" in data:
                         session.agents[agent_id].lang = data["lang"]
+                    if "name" in data:
+                        session.agents[agent_id].name = data["name"]
                     await ws.send_text(
                         json.dumps(
                             {"type": "ok", "what": "agent_updated", "agent": agent_id}
                         )
                     )
+
+            elif mtype == "add_agent":
+                # Add a new agent to the session
+                agent_id = data.get("agent_id", f"Agent_{len(session.agents) + 1}")
+                if agent_id not in session.agents:
+                    session.agents[agent_id] = Agent(
+                        id=agent_id,
+                        name=data.get("name", f"Agent {agent_id}"),
+                        instructions=data.get("instructions", "You are a helpful assistant."),
+                        voice=data.get("voice", "am_adam"),
+                        lang=data.get("lang", "en"),
+                    )
+                    await ws.send_text(
+                        json.dumps(
+                            {"type": "ok", "what": "agent_added", "agent": agent_id}
+                        )
+                    )
+                else:
+                    await ws.send_text(
+                        json.dumps(
+                            {"type": "error", "message": f"Agent {agent_id} already exists"}
+                        )
+                    )
+
+            elif mtype == "remove_agent":
+                # Remove an agent from the session
+                agent_id = data.get("agent")
+                if agent_id in session.agents and len(session.agents) > 1:
+                    del session.agents[agent_id]
+                    # Reset next speaker if it was the removed agent
+                    if session.next_speaker == agent_id:
+                        session.next_speaker = list(session.agents.keys())[0]
+                    await ws.send_text(
+                        json.dumps(
+                            {"type": "ok", "what": "agent_removed", "agent": agent_id}
+                        )
+                    )
+                elif len(session.agents) <= 1:
+                    await ws.send_text(
+                        json.dumps(
+                            {"type": "error", "message": "Cannot remove last agent"}
+                        )
+                    )
+                else:
+                    await ws.send_text(
+                        json.dumps(
+                            {"type": "error", "message": f"Agent {agent_id} not found"}
+                        )
+                    )
+
+            elif mtype == "set_director":
+                # Update director settings
+                d = data.get("director") or {}
+                if "instructions" in d:
+                    session.director.instructions = str(d["instructions"])
+                if "max_turns" in d:
+                    session.director.max_turns = int(d["max_turns"])
+                if "turn_length" in d:
+                    session.director.turn_length = str(d["turn_length"])
+                if "stop_phrase" in d:
+                    session.director.stop_phrase = str(d["stop_phrase"])
+                if "delay_between_turns" in d:
+                    session.director.delay_between_turns = float(d["delay_between_turns"])
+                await ws.send_text(json.dumps({"type": "ok", "what": "director_updated"}))
 
             elif mtype == "user_text":
                 text = (data.get("text") or "").strip()
@@ -459,7 +639,7 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                 session.running = False
                 session.cancel_speaking.set()
                 session.transcript.clear()
-                session.next_speaker = "A"
+                session.next_speaker = list(session.agents.keys())[0] if session.agents else "A"
                 await ws.send_text(json.dumps({"type": "ok", "what": "reset"}))
 
             else:

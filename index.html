@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Duet - Multi-Agent Conversation System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    @keyframes pulse-ring { 0% { transform: scale(0.9); opacity: 0.6; } 100% { transform: scale(1.12); opacity: 0; } }
+    .recording-pulse { animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+  </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
+
+  <div class="w-full max-w-7xl bg-gray-800 rounded-3xl shadow-2xl overflow-hidden border border-gray-700 flex flex-col lg:flex-row h-[92vh]">
+
+    <!-- LEFT: Controls -->
+    <div class="w-full lg:w-[420px] bg-gray-900 p-5 flex flex-col gap-4 border-r border-gray-700 overflow-y-auto custom-scrollbar">
+
+      <div>
+        <h1 class="text-2xl font-black text-blue-400">AI DUET</h1>
+        <p class="text-xs text-gray-500">Multi-Agent LLM Conversation</p>
+      </div>
+
+      <!-- Status -->
+      <div class="flex items-center justify-between bg-gray-800 p-3 rounded-xl border border-gray-700">
+        <span class="text-xs font-bold text-gray-400">STATUS</span>
+        <span id="status-badge" class="text-xs font-bold px-2 py-1 bg-red-900 text-red-200 rounded">OFFLINE</span>
+      </div>
+
+      <!-- Start/Stop -->
+      <div class="grid grid-cols-2 gap-3">
+        <button id="start-btn" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl transition" disabled>START</button>
+        <button id="stop-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition" disabled>STOP</button>
+      </div>
+
+      <button id="interrupt-btn" class="bg-yellow-700 hover:bg-yellow-600 text-yellow-100 font-bold py-2 rounded-xl transition" disabled>
+        INTERRUPT (stop audio)
+      </button>
+
+      <!-- User text injection -->
+      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
+        <div class="flex items-center gap-2 mb-2">
+          <i class="fa-solid fa-comment-dots text-blue-300"></i>
+          <span class="text-sm font-bold">Inject text</span>
+        </div>
+        <input id="user-text" class="w-full bg-gray-900 text-sm p-3 rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none"
+               placeholder="Steer mid-topic..." />
+        <button id="send-text-btn" class="mt-2 w-full bg-blue-700 hover:bg-blue-600 text-xs font-bold py-2 rounded transition" disabled>SEND</button>
+      </div>
+
+      <!-- Director -->
+      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
+        <div class="flex items-center gap-2 mb-2">
+          <i class="fa-solid fa-clapperboard text-emerald-300"></i>
+          <span class="text-sm font-bold">Director Settings</span>
+        </div>
+
+        <label class="text-[10px] text-gray-400 font-bold">Rules</label>
+        <textarea id="director-rules" rows="3"
+                  class="w-full bg-gray-900 text-sm p-3 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+                  placeholder="Enter director instructions..."></textarea>
+
+        <div class="grid grid-cols-2 gap-2 mt-2">
+          <div>
+            <label class="text-[10px] text-gray-400 font-bold">Max turns</label>
+            <input id="director-max-turns" type="number" min="1" step="1" value="200"
+                   class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 font-bold">Turn length</label>
+            <select id="director-turn-length" class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none">
+              <option value="short">short</option>
+              <option value="medium" selected>medium</option>
+              <option value="long">long</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <label class="text-[10px] text-gray-400 font-bold">Delay between turns (seconds)</label>
+          <input id="director-delay" type="number" min="0" max="10" step="0.1" value="0.35"
+                 class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none" />
+        </div>
+
+        <label class="text-[10px] text-gray-400 font-bold mt-2 block">Stop phrase</label>
+        <input id="director-stop-phrase"
+               class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+               placeholder="e.g. [[END]]" />
+
+        <button id="director-update-btn" class="mt-2 w-full bg-emerald-900/60 hover:bg-emerald-800 text-xs font-bold py-2 rounded transition" disabled>
+          UPDATE DIRECTOR
+        </button>
+      </div>
+
+      <!-- Agent Management -->
+      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-user-gear text-indigo-300"></i>
+            <span class="text-sm font-bold">Agents</span>
+          </div>
+          <button id="add-agent-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded transition" disabled>
+            <i class="fa-solid fa-plus"></i> Add Agent
+          </button>
+        </div>
+
+        <div id="agents-container" class="space-y-3">
+          <!-- Agents will be dynamically added here -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Transcript + mic -->
+    <div class="flex-1 flex flex-col relative bg-gray-800">
+      <div id="transcript" class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar pb-28">
+        <div class="text-center text-gray-500 text-sm mt-10">
+          <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+          <p>Connecting to server...</p>
+        </div>
+      </div>
+
+      <div class="absolute bottom-6 left-6 right-6 flex gap-3">
+        <button id="mic-btn"
+                class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 group"
+                disabled>
+          <i class="fas fa-microphone text-xl group-hover:scale-110 transition"></i>
+          <span>HOLD TO SPEAK (PTT)</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+(() => {
+  let ws;
+  let audioCtx, micStream, scriptProcessor;
+  let currentAudio = null;
+  let sessionAgents = {};
+
+  const statusBadge = document.getElementById('status-badge');
+  const transcript = document.getElementById('transcript');
+
+  const startBtn = document.getElementById('start-btn');
+  const stopBtn = document.getElementById('stop-btn');
+  const interruptBtn = document.getElementById('interrupt-btn');
+
+  const micBtn = document.getElementById('mic-btn');
+
+  const userText = document.getElementById('user-text');
+  const sendTextBtn = document.getElementById('send-text-btn');
+
+  const directorRules = document.getElementById('director-rules');
+  const directorMaxTurns = document.getElementById('director-max-turns');
+  const directorTurnLength = document.getElementById('director-turn-length');
+  const directorStopPhrase = document.getElementById('director-stop-phrase');
+  const directorDelay = document.getElementById('director-delay');
+  const directorUpdateBtn = document.getElementById('director-update-btn');
+
+  const addAgentBtn = document.getElementById('add-agent-btn');
+  const agentsContainer = document.getElementById('agents-container');
+
+  let agentCounter = 0;
+
+  function setOnline(online) {
+    if (online) {
+      statusBadge.innerText = "ONLINE";
+      statusBadge.className = "text-xs font-bold px-2 py-1 bg-green-900 text-green-200 rounded";
+    } else {
+      statusBadge.innerText = "OFFLINE";
+      statusBadge.className = "text-xs font-bold px-2 py-1 bg-red-900 text-red-200 rounded";
+    }
+
+    const dis = !online;
+    startBtn.disabled = dis;
+    stopBtn.disabled = dis;
+    interruptBtn.disabled = dis;
+    micBtn.disabled = dis;
+    sendTextBtn.disabled = dis;
+    directorUpdateBtn.disabled = dis;
+    addAgentBtn.disabled = dis;
+  }
+
+  function addSystemMessage(text, color='yellow') {
+    const div = document.createElement('div');
+    div.className = "flex justify-center my-2";
+    div.innerHTML = `<span class="text-[11px] font-mono bg-gray-900 border border-${color}-900 text-${color}-400 px-2 py-1 rounded">${escapeHtml(text)}</span>`;
+    transcript.appendChild(div);
+    transcript.scrollTop = transcript.scrollHeight;
+  }
+
+  function addMessage(name, text, who) {
+    const div = document.createElement('div');
+    const isUser = who === 'user';
+    div.className = `flex flex-col ${isUser ? 'items-end' : 'items-start'}`;
+
+    let bubble = isUser ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200';
+    
+    // Color code by agent
+    const agentColors = [
+      'bg-indigo-900/80 text-indigo-100 border border-indigo-700',
+      'bg-emerald-900/80 text-emerald-100 border border-emerald-700',
+      'bg-purple-900/80 text-purple-100 border border-purple-700',
+      'bg-pink-900/80 text-pink-100 border border-pink-700',
+      'bg-amber-900/80 text-amber-100 border border-amber-700',
+    ];
+    
+    if (!isUser && who) {
+      const agentIndex = Object.keys(sessionAgents).indexOf(who);
+      if (agentIndex >= 0) {
+        bubble = agentColors[agentIndex % agentColors.length];
+      }
+    }
+
+    div.innerHTML = `
+      <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 px-1">${escapeHtml(name)}</span>
+      <div class="max-w-[85%] px-4 py-3 rounded-2xl text-sm ${bubble} shadow-sm">
+        ${escapeHtml(text)}
+      </div>
+    `;
+    transcript.appendChild(div);
+    transcript.scrollTop = transcript.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  }
+
+  function playAudio(b64) {
+    if (currentAudio) {
+      try { currentAudio.pause(); } catch (_) {}
+      currentAudio = null;
+    }
+    const audio = new Audio("data:audio/wav;base64," + b64);
+    currentAudio = audio;
+    audio.play();
+  }
+
+  function stopAudio() {
+    if (currentAudio) {
+      try { currentAudio.pause(); } catch (_) {}
+      currentAudio = null;
+    }
+  }
+
+  // Agent UI management
+  function renderAgentCard(agentId, agent) {
+    const card = document.createElement('div');
+    card.className = "border border-gray-700 rounded-xl p-3";
+    card.id = `agent-card-${agentId}`;
+    
+    const canRemove = Object.keys(sessionAgents).length > 1;
+    
+    card.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-black text-indigo-200">${escapeHtml(agent.name)}</div>
+        ${canRemove ? `<button onclick="removeAgent('${agentId}')" class="text-red-400 hover:text-red-300 text-xs"><i class="fa-solid fa-trash"></i></button>` : ''}
+      </div>
+      
+      <label class="text-[10px] text-gray-400 font-bold">Voice</label>
+      <select id="${agentId}-voice" class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none mb-2">
+        <option value="am_adam" ${agent.voice === 'am_adam' ? 'selected' : ''}>am_adam</option>
+        <option value="af_heart" ${agent.voice === 'af_heart' ? 'selected' : ''}>af_heart</option>
+        <option value="am_michael" ${agent.voice === 'am_michael' ? 'selected' : ''}>am_michael</option>
+        <option value="af_sky" ${agent.voice === 'af_sky' ? 'selected' : ''}>af_sky</option>
+      </select>
+
+      <label class="text-[10px] text-gray-400 font-bold">Language</label>
+      <select id="${agentId}-lang" class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none mb-2">
+        <option value="en" ${agent.lang === 'en' ? 'selected' : ''}>English</option>
+        <option value="es" ${agent.lang === 'es' ? 'selected' : ''}>Spanish</option>
+      </select>
+
+      <label class="text-[10px] text-gray-400 font-bold">System prompt</label>
+      <textarea id="${agentId}-prompt" rows="3"
+                class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none mb-2">${escapeHtml(agent.instructions)}</textarea>
+
+      <button onclick="updateAgent('${agentId}')" class="w-full bg-indigo-900/60 hover:bg-indigo-800 text-xs font-bold py-2 rounded transition">
+        UPDATE
+      </button>
+    `;
+    
+    return card;
+  }
+
+  function renderAllAgents() {
+    agentsContainer.innerHTML = '';
+    for (const [agentId, agent] of Object.entries(sessionAgents)) {
+      agentsContainer.appendChild(renderAgentCard(agentId, agent));
+    }
+  }
+
+  window.updateAgent = function(agentId) {
+    const voice = document.getElementById(`${agentId}-voice`).value;
+    const lang = document.getElementById(`${agentId}-lang`).value;
+    const instructions = document.getElementById(`${agentId}-prompt`).value;
+    
+    ws.send(JSON.stringify({
+      type: "set_agent",
+      agent: agentId,
+      voice: voice,
+      lang: lang,
+      instructions: instructions
+    }));
+  };
+
+  window.removeAgent = function(agentId) {
+    if (Object.keys(sessionAgents).length <= 1) {
+      alert("Cannot remove the last agent!");
+      return;
+    }
+    
+    if (confirm(`Remove agent ${sessionAgents[agentId].name}?`)) {
+      ws.send(JSON.stringify({
+        type: "remove_agent",
+        agent: agentId
+      }));
+    }
+  };
+
+  addAgentBtn.onclick = () => {
+    agentCounter++;
+    const newAgentId = `Agent_${agentCounter}`;
+    const agentName = prompt("Enter agent name:", `Agent ${agentCounter}`);
+    if (!agentName) return;
+    
+    ws.send(JSON.stringify({
+      type: "add_agent",
+      agent_id: newAgentId,
+      name: agentName,
+      instructions: "You are a helpful assistant.",
+      voice: "am_adam",
+      lang: "en"
+    }));
+  };
+
+  // WS connect
+  function connect() {
+    const host = window.location.host;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${host}/ws/demo`);
+
+    ws.onopen = () => {
+      setOnline(true);
+      transcript.innerHTML = "";
+      addSystemMessage("System ready", "green");
+    };
+
+    ws.onclose = () => {
+      setOnline(false);
+      addSystemMessage("Disconnected", "red");
+      stopAudio();
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === "session_state") {
+        // Seed UI
+        sessionAgents = data.agents || {};
+        renderAllAgents();
+        
+        if (data.director) {
+          directorRules.value = data.director.instructions || "";
+          directorMaxTurns.value = data.director.max_turns || 200;
+          directorTurnLength.value = data.director.turn_length || "medium";
+          directorStopPhrase.value = data.director.stop_phrase || "";
+          directorDelay.value = data.director.delay_between_turns || 0.35;
+        }
+      }
+
+      if (data.type === "agent_text") {
+        addMessage(data.name || data.agent, data.text, data.agent);
+      }
+
+      if (data.type === "user_text_ack") {
+        addMessage("You", data.text, "user");
+      }
+
+      if (data.type === "agent_audio") {
+        playAudio(data.wav_b64);
+      }
+
+      if (data.type === "stop_audio") {
+        stopAudio();
+      }
+
+      if (data.type === "ok") {
+        addSystemMessage(`✅ ${data.what}`, "green");
+        
+        // Refresh agent list if agent was added/removed
+        if (data.what === "agent_added" || data.what === "agent_removed") {
+          // Add/remove from local state
+          if (data.what === "agent_added" && data.agent) {
+            // Request updated session state
+            setTimeout(() => location.reload(), 500);
+          } else if (data.what === "agent_removed" && data.agent) {
+            delete sessionAgents[data.agent];
+            renderAllAgents();
+          }
+        }
+      }
+
+      if (data.type === "error") {
+        addSystemMessage(`❗ ${data.message}`, "red");
+      }
+
+      if (data.type === "duet_ended") {
+        addSystemMessage(`Conversation ended after ${data.turns} turns`, "blue");
+      }
+    };
+  }
+
+  // Buttons
+  startBtn.onclick = () => ws.send(JSON.stringify({type: "start_duet"}));
+  stopBtn.onclick = () => ws.send(JSON.stringify({type: "stop"}));
+  interruptBtn.onclick = () => {
+    ws.send(JSON.stringify({type: "interrupt"}));
+    stopAudio();
+  };
+
+  sendTextBtn.onclick = () => {
+    const t = userText.value.trim();
+    if (!t) return;
+    ws.send(JSON.stringify({type: "user_text", text: t}));
+    userText.value = "";
+  };
+
+  userText.onkeypress = (e) => {
+    if (e.key === 'Enter') sendTextBtn.onclick();
+  };
+
+  directorUpdateBtn.onclick = () => {
+    ws.send(JSON.stringify({
+      type: "set_director",
+      director: {
+        instructions: directorRules.value,
+        max_turns: parseInt(directorMaxTurns.value || "200", 10),
+        turn_length: directorTurnLength.value,
+        stop_phrase: directorStopPhrase.value,
+        delay_between_turns: parseFloat(directorDelay.value || "0.35")
+      }
+    }));
+  };
+
+  // PTT mic
+  micBtn.onmousedown = async () => {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      const source = audioCtx.createMediaStreamSource(micStream);
+      scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+
+      source.connect(scriptProcessor);
+      scriptProcessor.connect(audioCtx.destination);
+
+      scriptProcessor.onaudioprocess = (e) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const input = e.inputBuffer.getChannelData(0);
+
+        const pcm16 = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i++) {
+          const s = Math.max(-1, Math.min(1, input[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+
+        const u8 = new Uint8Array(pcm16.buffer);
+        let bin = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < u8.length; i += chunk) {
+          bin += String.fromCharCode(...u8.subarray(i, i + chunk));
+        }
+
+        ws.send(JSON.stringify({ type: "user_audio", pcm16_b64: btoa(bin) }));
+      };
+
+      micBtn.classList.remove('bg-blue-600');
+      micBtn.classList.add('bg-red-600', 'recording-pulse');
+      micBtn.innerHTML = `<i class="fas fa-wave-square"></i><span>LISTENING...</span>`;
+
+    } catch (err) {
+      console.error(err);
+      alert("Microphone access denied!");
+    }
+  };
+
+  micBtn.onmouseup = () => {
+    try {
+      if (micStream) micStream.getTracks().forEach(t => t.stop());
+      if (scriptProcessor) scriptProcessor.disconnect();
+      if (audioCtx) audioCtx.close();
+    } catch (_) {}
+
+    micStream = null; scriptProcessor = null; audioCtx = null;
+
+    micBtn.classList.add('bg-blue-600');
+    micBtn.classList.remove('bg-red-600', 'recording-pulse');
+    micBtn.innerHTML = `<i class="fas fa-microphone text-xl"></i><span>HOLD TO SPEAK (PTT)</span>`;
+  };
+
+  // Boot
+  setOnline(false);
+  connect();
+
+  // Default director rules
+  if (!directorRules.value) {
+    directorRules.value = [
+      "Keep it conversational and avoid repetition.",
+      "Each turn: 1–3 short paragraphs.",
+      "Ask a short question every few turns."
+    ].join("\n");
+  }
+})();
+</script>
+
+</body>
+</html>
