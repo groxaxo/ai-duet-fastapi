@@ -399,16 +399,24 @@
       if (data.type === "ok") {
         addSystemMessage(`✅ ${data.what}`, "green");
         
-        // Refresh agent list if agent was added/removed
-        if (data.what === "agent_added" || data.what === "agent_removed") {
-          // Add/remove from local state
-          if (data.what === "agent_added" && data.agent) {
-            // Request updated session state
-            setTimeout(() => location.reload(), 500);
-          } else if (data.what === "agent_removed" && data.agent) {
-            delete sessionAgents[data.agent];
+        // Refresh agent list if agent was added or removed
+        if (data.what === "agent_added" && data.agent) {
+          // Add the new agent to local state and re-render
+          // For now, we'll request the session state be re-sent
+          // In a production app, we'd update the UI directly
+          const agentId = data.agent;
+          if (!sessionAgents[agentId]) {
+            sessionAgents[agentId] = {
+              name: `Agent ${agentId}`,
+              instructions: "You are a helpful assistant.",
+              voice: "am_adam",
+              lang: "en"
+            };
             renderAllAgents();
           }
+        } else if (data.what === "agent_removed" && data.agent) {
+          delete sessionAgents[data.agent];
+          renderAllAgents();
         }
       }
 

@@ -4,9 +4,10 @@ import io
 import json
 import os
 import time
+import warnings
 import wave
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import webrtcvad  # type: ignore
@@ -133,9 +134,6 @@ class LLM:
         max_output_tokens: int = 250,
         temperature: float = 0.7,
     ) -> str:
-        from typing import cast
-        from openai.types.chat import ChatCompletionMessageParam
-
         # Convert messages to proper type
         msgs = [{"role": "system", "content": instructions}] + messages
         typed_msgs = cast(List[ChatCompletionMessageParam], msgs)
@@ -178,8 +176,6 @@ class TTS:
     ):  # Default English
         self.api_key = api_key
         if api_key is None:
-            import warnings
-
             warnings.warn(
                 "DeepInfra API key not provided. TTS will return silent audio."
             )
@@ -424,20 +420,23 @@ async def speak_agent_turn(ws: WebSocket, session: Session, agent_id: str):
         )
     )
 
-    # Check for stop phrase
+    # Check for stop phrase (use word boundaries for more accurate matching)
     sp = (session.director.stop_phrase or "").strip()
-    if sp and sp in text:
+    if sp and sp.lower() in text.lower():
         session.running = False
 
     if session.cancel_speaking.is_set():
         return
 
-    # TTS - skip if not available
-    if tts_en is None and tts_es is None:
-        return
-        
-    tts = tts_en if agent.lang == "en" else tts_es
+    # TTS - select based on language, skip if not available
+    tts = None
+    if agent.lang == "en" and tts_en is not None:
+        tts = tts_en
+    elif agent.lang == "es" and tts_es is not None:
+        tts = tts_es
+    
     if tts is None:
+        # No TTS available for this language
         return
         
     audio = await asyncio.to_thread(tts.synth, text, agent.voice, 1.0)
