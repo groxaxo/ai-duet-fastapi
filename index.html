@@ -2,215 +2,497 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>LLM↔LLM Voice Duet + Memvid</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Duet • Neural Conversation Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-    @keyframes pulse-ring { 0% { transform: scale(0.9); opacity: 0.6; } 100% { transform: scale(1.12); opacity: 0; } }
-    .recording-pulse { animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+    
+    /* Animated background */
+    .bg-animated {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(74, 144, 226, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 40% 20%, rgba(45, 212, 191, 0.08) 0%, transparent 50%);
+      animation: bgShift 15s ease infinite;
+      z-index: -1;
+    }
+    
+    @keyframes bgShift {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+    
+    /* Glassmorphism */
+    .glass {
+      background: rgba(26, 26, 46, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+    
+    .glass-strong {
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    }
+    
+    /* Custom scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 15, 25, 0.3);
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #4a90e2, #2dd4bf);
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #5aa0f2, #3de4cf);
+    }
+    
+    /* Glow effects */
+    .glow-blue {
+      box-shadow: 0 0 20px rgba(74, 144, 226, 0.4);
+    }
+    
+    .glow-green {
+      box-shadow: 0 0 20px rgba(45, 212, 191, 0.4);
+    }
+    
+    .glow-purple {
+      box-shadow: 0 0 20px rgba(120, 119, 198, 0.4);
+    }
+    
+    /* Pulse animation */
+    @keyframes pulse-glow {
+      0%, 100% {
+        box-shadow: 0 0 10px rgba(74, 144, 226, 0.3), 0 0 20px rgba(74, 144, 226, 0.2);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 20px rgba(74, 144, 226, 0.5), 0 0 40px rgba(74, 144, 226, 0.3);
+        transform: scale(1.02);
+      }
+    }
+    
+    .pulse-active {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    
+    /* Recording pulse */
+    @keyframes recording-pulse {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      }
+      50% {
+        box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+      }
+    }
+    
+    .recording-pulse {
+      animation: recording-pulse 1.5s ease-out infinite;
+    }
+    
+    /* Button styles */
+    .btn {
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    
+    .btn:active::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    /* Status badge animation */
+    @keyframes status-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    .status-online {
+      animation: status-blink 2s ease-in-out infinite;
+    }
+    
+    /* Input focus effects */
+    .input-futuristic {
+      background: rgba(15, 15, 25, 0.6);
+      border: 1px solid rgba(74, 144, 226, 0.2);
+      transition: all 0.3s ease;
+    }
+    
+    .input-futuristic:focus {
+      background: rgba(15, 15, 25, 0.8);
+      border-color: rgba(74, 144, 226, 0.6);
+      box-shadow: 0 0 15px rgba(74, 144, 226, 0.3);
+      outline: none;
+    }
+    
+    /* Message bubbles */
+    .message-bubble {
+      position: relative;
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    /* Orbitron font for headers */
+    .font-orbitron {
+      font-family: 'Orbitron', sans-serif;
+    }
+    
+    /* Hover effects */
+    .hover-lift {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .hover-lift:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    }
+    
+    /* Section headers */
+    .section-header {
+      position: relative;
+      padding-left: 12px;
+    }
+    
+    .section-header::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 100%;
+      background: linear-gradient(180deg, #4a90e2, #2dd4bf);
+      border-radius: 2px;
+    }
+    
+    /* Loading spinner */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
   </style>
 </head>
 
-<body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
-
-  <div class="w-full max-w-6xl bg-gray-800 rounded-3xl shadow-2xl overflow-hidden border border-gray-700 flex flex-col lg:flex-row h-[88vh]">
-
-    <!-- LEFT: Controls -->
-    <div class="w-full lg:w-[380px] bg-gray-900 p-5 flex flex-col gap-4 border-r border-gray-700 overflow-y-auto custom-scrollbar">
-
-      <div>
-        <h1 class="text-2xl font-black text-blue-400">AI DUET</h1>
-        <p class="text-xs text-gray-500">LLM↔LLM • STT/TTS • Memvid</p>
-      </div>
-
-      <!-- Status -->
-      <div class="flex items-center justify-between bg-gray-800 p-3 rounded-xl border border-gray-700">
-        <span class="text-xs font-bold text-gray-400">STATUS</span>
-        <span id="status-badge" class="text-xs font-bold px-2 py-1 bg-red-900 text-red-200 rounded">OFFLINE</span>
-      </div>
-
-      <!-- Start/Stop -->
-      <div class="grid grid-cols-2 gap-3">
-        <button id="start-btn" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl transition" disabled>START</button>
-        <button id="stop-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition" disabled>STOP</button>
-      </div>
-
-      <button id="interrupt-btn" class="bg-yellow-700 hover:bg-yellow-600 text-yellow-100 font-bold py-2 rounded-xl transition" disabled>
-        INTERRUPT (stop audio)
-      </button>
-
-      <!-- User text injection -->
-      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
-        <div class="flex items-center gap-2 mb-2">
-          <i class="fa-solid fa-comment-dots text-blue-300"></i>
-          <span class="text-sm font-bold">Inject text</span>
+<body>
+  <div class="bg-animated"></div>
+  
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-[95vw] h-[95vh] flex gap-4">
+      
+      <!-- LEFT PANEL: Controls -->
+      <div class="w-[420px] glass-strong rounded-3xl p-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+        
+        <!-- Header -->
+        <div class="text-center mb-2">
+          <h1 class="text-3xl font-orbitron font-black bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+            AI DUET
+          </h1>
+          <p class="text-xs text-gray-400 mt-1 font-light tracking-wider">NEURAL CONVERSATION ENGINE v2.0</p>
         </div>
-        <input id="user-text" class="w-full bg-gray-900 text-sm p-3 rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none"
-               placeholder="Steer mid-topic: e.g. switch to robotics..." />
-        <button id="send-text-btn" class="mt-2 w-full bg-blue-700 hover:bg-blue-600 text-xs font-bold py-2 rounded transition" disabled>SEND</button>
-      </div>
-
-      <!-- Debate topic helper -->
-      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
-        <div class="flex items-center gap-2 mb-2">
-          <i class="fa-solid fa-bolt text-amber-300"></i>
-          <span class="text-sm font-bold">Quick debate topic</span>
-        </div>
-        <input id="topic-input" class="w-full bg-gray-900 text-sm p-3 rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none"
-               placeholder="e.g. Future of Mars" />
-        <button id="set-topic-btn" class="mt-2 w-full bg-gray-700 hover:bg-gray-600 text-xs font-bold py-2 rounded transition" disabled>SET TOPIC</button>
-      </div>
-
-      <!-- Memory -->
-      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-memory text-purple-300"></i>
-            <span class="text-sm font-bold">Memory (Memvid)</span>
-          </div>
-          <label class="flex items-center gap-2 text-xs text-gray-300">
-            <input type="checkbox" id="mem-enabled" class="accent-purple-400" />
-            enabled
-          </label>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <label class="text-[10px] text-gray-400 font-bold">Top-K</label>
-            <input id="mem-k" type="number" min="1" step="1" value="6"
-                   class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none" />
-          </div>
-          <div>
-            <label class="text-[10px] text-gray-400 font-bold">Mode</label>
-            <select id="mem-mode" class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none">
-              <option value="lex">lex</option>
-              <option value="sem">sem</option>
-              <option value="auto">auto</option>
-              <option value="hyb">hyb</option>
-            </select>
-          </div>
-          <div class="flex items-end">
-            <button id="mem-update-btn" class="w-full bg-purple-900/60 hover:bg-purple-800 text-xs font-bold py-2 rounded transition" disabled>UPDATE</button>
+        
+        <!-- Status Section -->
+        <div class="glass rounded-2xl p-4 hover-lift">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div id="status-indicator" class="w-3 h-3 rounded-full bg-red-500"></div>
+              <span class="text-sm font-semibold text-gray-300">System Status</span>
+            </div>
+            <span id="status-text" class="text-xs font-bold px-3 py-1 rounded-full bg-red-500/20 text-red-300">OFFLINE</span>
           </div>
         </div>
-
-        <div class="grid grid-cols-2 gap-2 mt-2">
-          <button id="wipe-a" class="bg-gray-700 hover:bg-gray-600 text-xs font-bold py-2 rounded transition" disabled>Wipe A</button>
-          <button id="wipe-b" class="bg-gray-700 hover:bg-gray-600 text-xs font-bold py-2 rounded transition" disabled>Wipe B</button>
-        </div>
-
-        <button id="save-session-btn" class="mt-2 w-full bg-purple-900/50 hover:bg-purple-800 text-xs font-bold py-2 rounded transition" disabled>
-          Save snapshot
-        </button>
-
-        <p id="mem-available" class="text-[10px] text-gray-500 mt-2"></p>
-      </div>
-
-      <!-- Director -->
-      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
-        <div class="flex items-center gap-2 mb-2">
-          <i class="fa-solid fa-clapperboard text-emerald-300"></i>
-          <span class="text-sm font-bold">Director</span>
-        </div>
-
-        <label class="text-[10px] text-gray-400 font-bold">Rules</label>
-        <textarea id="director-rules" rows="5"
-                  class="w-full bg-gray-900 text-sm p-3 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"></textarea>
-
-        <div class="grid grid-cols-2 gap-2 mt-2">
-          <div>
-            <label class="text-[10px] text-gray-400 font-bold">Max turns</label>
-            <input id="director-max-turns" type="number" min="1" step="1" value="200"
-                   class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none" />
+        
+        <!-- Main Controls -->
+        <div class="glass rounded-2xl p-4 hover-lift">
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <button id="start-btn" class="btn bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+              <i class="fas fa-play mr-2"></i>START
+            </button>
+            <button id="stop-btn" class="btn bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+              <i class="fas fa-stop mr-2"></i>STOP
+            </button>
           </div>
-          <div>
-            <label class="text-[10px] text-gray-400 font-bold">Turn length</label>
-            <select id="director-turn-length" class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none">
-              <option value="short">short</option>
-              <option value="medium" selected>medium</option>
-              <option value="long">long</option>
-            </select>
-          </div>
-        </div>
-
-        <label class="text-[10px] text-gray-400 font-bold mt-2 block">Stop phrase</label>
-        <input id="director-stop-phrase"
-               class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
-               placeholder="e.g. [[END]]" />
-
-        <button id="director-update-btn" class="mt-2 w-full bg-emerald-900/60 hover:bg-emerald-800 text-xs font-bold py-2 rounded transition" disabled>
-          UPDATE DIRECTOR
-        </button>
-      </div>
-
-      <!-- Agent settings -->
-      <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
-        <div class="flex items-center gap-2 mb-2">
-          <i class="fa-solid fa-user-gear text-indigo-300"></i>
-          <span class="text-sm font-bold">Agents</span>
-        </div>
-
-        <!-- Agent A -->
-        <div class="border border-gray-700 rounded-xl p-3 mb-3">
-          <div class="text-xs font-black text-indigo-200 mb-2">Agent A (Alice)</div>
-          <label class="text-[10px] text-gray-400 font-bold">Voice</label>
-          <select id="a-voice" class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">
-            <option value="af_heart">af_heart</option>
-            <option value="am_michael">am_michael</option>
-            <option value="am_adam">am_adam</option>
-            <option value="af_sky">af_sky</option>
-          </select>
-
-          <label class="text-[10px] text-gray-400 font-bold mt-2 block">System prompt</label>
-          <textarea id="a-prompt" rows="4"
-                    class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"></textarea>
-
-          <button id="a-update-btn" class="mt-2 w-full bg-indigo-900/60 hover:bg-indigo-800 text-xs font-bold py-2 rounded transition" disabled>
-            UPDATE A
+          <button id="interrupt-btn" class="btn w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white font-bold py-2.5 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+            <i class="fas fa-hand mr-2"></i>INTERRUPT
           </button>
         </div>
-
-        <!-- Agent B -->
-        <div class="border border-gray-700 rounded-xl p-3">
-          <div class="text-xs font-black text-emerald-200 mb-2">Agent B (Bob)</div>
-          <label class="text-[10px] text-gray-400 font-bold">Voice</label>
-          <select id="b-voice" class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none">
-            <option value="am_michael">am_michael</option>
-            <option value="af_heart">af_heart</option>
-            <option value="am_adam">am_adam</option>
-            <option value="af_sky">af_sky</option>
-          </select>
-
-          <label class="text-[10px] text-gray-400 font-bold mt-2 block">System prompt</label>
-          <textarea id="b-prompt" rows="4"
-                    class="w-full bg-gray-900 text-sm p-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"></textarea>
-
-          <button id="b-update-btn" class="mt-2 w-full bg-emerald-900/60 hover:bg-emerald-800 text-xs font-bold py-2 rounded transition" disabled>
-            UPDATE B
+        
+        <!-- User Input -->
+        <div class="glass rounded-2xl p-4 hover-lift">
+          <div class="section-header mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-message text-blue-400"></i>
+              <span class="text-sm font-bold text-gray-200">Text Injection</span>
+            </div>
+          </div>
+          <input 
+            id="user-text" 
+            class="w-full input-futuristic text-sm p-3 rounded-xl text-gray-100 placeholder-gray-500"
+            placeholder="Inject your message into the conversation..."
+          />
+          <button id="send-text-btn" class="btn mt-2 w-full bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-bold py-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+            <i class="fas fa-paper-plane mr-2"></i>SEND MESSAGE
           </button>
         </div>
+        
+        <!-- Quick Topic -->
+        <div class="glass rounded-2xl p-4 hover-lift">
+          <div class="section-header mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-bolt text-yellow-400"></i>
+              <span class="text-sm font-bold text-gray-200">Quick Debate Setup</span>
+            </div>
+          </div>
+          <input 
+            id="topic-input" 
+            class="w-full input-futuristic text-sm p-3 rounded-xl text-gray-100 placeholder-gray-500"
+            placeholder="e.g., Future of Artificial Intelligence"
+          />
+          <button id="set-topic-btn" class="btn mt-2 w-full bg-purple-600/80 hover:bg-purple-600 text-white text-xs font-bold py-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+            <i class="fas fa-fire mr-2"></i>SET TOPIC
+          </button>
+        </div>
+        
+        <!-- TTS Model Selector (DeepInfra only) -->
+        <div id="tts-model-section" class="glass rounded-2xl p-4 hover-lift hidden">
+          <div class="section-header mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-brain text-cyan-400"></i>
+              <span class="text-sm font-bold text-gray-200">TTS Model</span>
+            </div>
+          </div>
+          <select id="tts-model-select" class="w-full input-futuristic text-sm p-3 rounded-xl text-gray-100">
+            <option value="hexgrad/Kokoro-82M">Kokoro-82M (Fast & Efficient)</option>
+            <option value="resemblyai/chatterbox-turbo">Chatterbox Turbo (Expressive)</option>
+            <option value="canopylabs/orpheus-3b-0.1-ft">Orpheus (Premium Quality)</option>
+          </select>
+          <p class="text-[10px] text-gray-500 mt-2">Note: Changing model requires server restart</p>
+        </div>
+        
+        <!-- Memory Controls -->
+        <div class="glass rounded-2xl p-4 hover-lift">
+          <div class="flex items-center justify-between mb-3">
+            <div class="section-header">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-database text-purple-400"></i>
+                <span class="text-sm font-bold text-gray-200">Memory (Memvid)</span>
+              </div>
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="mem-enabled" class="w-4 h-4 accent-purple-500" />
+              <span class="text-xs text-gray-400">Enable</span>
+            </label>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-2 mb-2">
+            <div>
+              <label class="text-[10px] text-gray-400 font-semibold block mb-1">Top-K</label>
+              <input id="mem-k" type="number" min="1" step="1" value="6"
+                     class="w-full input-futuristic text-sm p-2 rounded-lg text-gray-100" />
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 font-semibold block mb-1">Mode</label>
+              <select id="mem-mode" class="w-full input-futuristic text-sm p-2 rounded-lg text-gray-100">
+                <option value="lex">Lexical</option>
+                <option value="sem">Semantic</option>
+                <option value="auto">Auto</option>
+                <option value="hyb">Hybrid</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button id="mem-update-btn" class="btn w-full bg-purple-600/60 hover:bg-purple-600 text-xs font-bold py-2 rounded-lg transition-all disabled:opacity-40" disabled>
+                UPDATE
+              </button>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <button id="wipe-a" class="btn bg-gray-700/60 hover:bg-gray-600 text-xs font-semibold py-2 rounded-lg transition-all disabled:opacity-40" disabled>
+              <i class="fas fa-eraser mr-1"></i>Wipe A
+            </button>
+            <button id="wipe-b" class="btn bg-gray-700/60 hover:bg-gray-600 text-xs font-semibold py-2 rounded-lg transition-all disabled:opacity-40" disabled>
+              <i class="fas fa-eraser mr-1"></i>Wipe B
+            </button>
+          </div>
+          
+          <button id="save-session-btn" class="btn w-full bg-purple-700/50 hover:bg-purple-600 text-xs font-bold py-2 rounded-lg transition-all disabled:opacity-40" disabled>
+            <i class="fas fa-save mr-2"></i>Save Session Snapshot
+          </button>
+          
+          <p id="mem-available" class="text-[10px] text-gray-500 mt-2 text-center"></p>
+        </div>
+        
+        <!-- Director Settings -->
+        <div class="glass rounded-2xl p-4 hover-lift">
+          <div class="section-header mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-clapperboard text-emerald-400"></i>
+              <span class="text-sm font-bold text-gray-200">Director Settings</span>
+            </div>
+          </div>
+          
+          <label class="text-[10px] text-gray-400 font-semibold block mb-1">Conversation Rules</label>
+          <textarea id="director-rules" rows="4"
+                    class="w-full input-futuristic text-xs p-3 rounded-xl text-gray-100 placeholder-gray-500 resize-none"
+                    placeholder="Define conversation rules..."></textarea>
+          
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <label class="text-[10px] text-gray-400 font-semibold block mb-1">Max Turns</label>
+              <input id="director-max-turns" type="number" min="1" step="1" value="200"
+                     class="w-full input-futuristic text-sm p-2 rounded-lg text-gray-100" />
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 font-semibold block mb-1">Turn Length</label>
+              <select id="director-turn-length" class="w-full input-futuristic text-sm p-2 rounded-lg text-gray-100">
+                <option value="short">Short</option>
+                <option value="medium" selected>Medium</option>
+                <option value="long">Long</option>
+              </select>
+            </div>
+          </div>
+          
+          <label class="text-[10px] text-gray-400 font-semibold block mb-1 mt-2">Stop Phrase</label>
+          <input id="director-stop-phrase"
+                 class="w-full input-futuristic text-sm p-2 rounded-lg text-gray-100 placeholder-gray-500"
+                 placeholder="e.g., [[END]]" />
+          
+          <button id="director-update-btn" class="btn mt-2 w-full bg-emerald-600/60 hover:bg-emerald-600 text-xs font-bold py-2 rounded-lg transition-all disabled:opacity-40" disabled>
+            <i class="fas fa-sync mr-2"></i>UPDATE DIRECTOR
+          </button>
+        </div>
+        
+        <!-- Agent Configuration -->
+        <div class="glass rounded-2xl p-4 hover-lift">
+          <div class="section-header mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-users-gear text-indigo-400"></i>
+              <span class="text-sm font-bold text-gray-200">Agent Configuration</span>
+            </div>
+          </div>
+          
+          <!-- Agent A -->
+          <div class="bg-gradient-to-br from-indigo-900/30 to-blue-900/30 border border-indigo-500/30 rounded-xl p-3 mb-3">
+            <div class="text-xs font-black text-indigo-300 mb-2 tracking-wide">
+              <i class="fas fa-user-astronaut mr-1"></i>AGENT A (Alice)
+            </div>
+            <label class="text-[10px] text-gray-400 font-semibold block mb-1">Voice</label>
+            <select id="a-voice" class="w-full input-futuristic text-sm p-2 rounded-lg text-gray-100 mb-2">
+              <option value="af_heart">af_heart</option>
+            </select>
+            
+            <label class="text-[10px] text-gray-400 font-semibold block mb-1">System Prompt</label>
+            <textarea id="a-prompt" rows="3"
+                      class="w-full input-futuristic text-xs p-2 rounded-lg text-gray-100 placeholder-gray-500 resize-none"
+                      placeholder="Define Agent A's personality..."></textarea>
+            
+            <button id="a-update-btn" class="btn mt-2 w-full bg-indigo-600/60 hover:bg-indigo-600 text-xs font-bold py-2 rounded-lg transition-all disabled:opacity-40" disabled>
+              <i class="fas fa-check mr-2"></i>UPDATE AGENT A
+            </button>
+          </div>
+          
+          <!-- Agent B -->
+          <div class="bg-gradient-to-br from-emerald-900/30 to-teal-900/30 border border-emerald-500/30 rounded-xl p-3">
+            <div class="text-xs font-black text-emerald-300 mb-2 tracking-wide">
+              <i class="fas fa-user-astronaut mr-1"></i>AGENT B (Bob)
+            </div>
+            <label class="text-[10px] text-gray-400 font-semibold block mb-1">Voice</label>
+            <select id="b-voice" class="w-full input-futuristic text-sm p-2 rounded-lg text-gray-100 mb-2">
+              <option value="am_michael">am_michael</option>
+            </select>
+            
+            <label class="text-[10px] text-gray-400 font-semibold block mb-1">System Prompt</label>
+            <textarea id="b-prompt" rows="3"
+                      class="w-full input-futuristic text-xs p-2 rounded-lg text-gray-100 placeholder-gray-500 resize-none"
+                      placeholder="Define Agent B's personality..."></textarea>
+            
+            <button id="b-update-btn" class="btn mt-2 w-full bg-emerald-600/60 hover:bg-emerald-600 text-xs font-bold py-2 rounded-lg transition-all disabled:opacity-40" disabled>
+              <i class="fas fa-check mr-2"></i>UPDATE AGENT B
+            </button>
+          </div>
+        </div>
+        
       </div>
+      
+      <!-- RIGHT PANEL: Transcript & Controls -->
+      <div class="flex-1 glass-strong rounded-3xl flex flex-col relative overflow-hidden">
+        
+        <!-- Transcript Area -->
+        <div id="transcript" class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar pb-32">
+          <div class="text-center text-gray-500 text-sm mt-20 flex flex-col items-center gap-3">
+            <i class="fas fa-satellite-dish text-4xl text-gray-600 spinner"></i>
+            <p>Initializing neural link...</p>
+          </div>
+        </div>
+        
+        <!-- Bottom Control Bar -->
+        <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0f0f19] via-[#0f0f19]/95 to-transparent">
+          <button id="mic-btn"
+                  class="btn w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-black py-6 rounded-2xl shadow-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-3 group glow-blue"
+                  disabled>
+            <i class="fas fa-microphone text-2xl group-hover:scale-110 transition-transform"></i>
+            <span class="text-lg tracking-wider">HOLD TO SPEAK</span>
+          </button>
+        </div>
+        
+      </div>
+      
     </div>
-
-    <!-- RIGHT: Transcript + mic -->
-    <div class="flex-1 flex flex-col relative bg-gray-800">
-      <div id="transcript" class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar pb-28">
-        <div class="text-center text-gray-500 text-sm mt-10">Waiting for connection...</div>
-      </div>
-
-      <div class="absolute bottom-6 left-6 right-6 flex gap-3">
-        <button id="mic-btn"
-                class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 group"
-                disabled>
-          <i class="fas fa-microphone text-xl group-hover:scale-110 transition"></i>
-          <span>HOLD TO SPEAK (PTT)</span>
-        </button>
-      </div>
-    </div>
-
   </div>
 
 <script>
@@ -219,21 +501,25 @@
   let audioCtx, micStream, scriptProcessor;
   let currentAudio = null;
 
-  const statusBadge = document.getElementById('status-badge');
+  // Elements
+  const statusIndicator = document.getElementById('status-indicator');
+  const statusText = document.getElementById('status-text');
   const transcript = document.getElementById('transcript');
-
+  
   const startBtn = document.getElementById('start-btn');
   const stopBtn = document.getElementById('stop-btn');
   const interruptBtn = document.getElementById('interrupt-btn');
-
   const micBtn = document.getElementById('mic-btn');
-
+  
   const userText = document.getElementById('user-text');
   const sendTextBtn = document.getElementById('send-text-btn');
-
+  
   const topicInput = document.getElementById('topic-input');
   const setTopicBtn = document.getElementById('set-topic-btn');
-
+  
+  const ttsModelSection = document.getElementById('tts-model-section');
+  const ttsModelSelect = document.getElementById('tts-model-select');
+  
   const memEnabled = document.getElementById('mem-enabled');
   const memK = document.getElementById('mem-k');
   const memMode = document.getElementById('mem-mode');
@@ -242,13 +528,13 @@
   const wipeB = document.getElementById('wipe-b');
   const saveSessionBtn = document.getElementById('save-session-btn');
   const memAvailable = document.getElementById('mem-available');
-
+  
   const directorRules = document.getElementById('director-rules');
   const directorMaxTurns = document.getElementById('director-max-turns');
   const directorTurnLength = document.getElementById('director-turn-length');
   const directorStopPhrase = document.getElementById('director-stop-phrase');
   const directorUpdateBtn = document.getElementById('director-update-btn');
-
+  
   const aVoice = document.getElementById('a-voice');
   const bVoice = document.getElementById('b-voice');
   const aPrompt = document.getElementById('a-prompt');
@@ -258,35 +544,38 @@
 
   function setOnline(online) {
     if (online) {
-      statusBadge.innerText = "ONLINE";
-      statusBadge.className = "text-xs font-bold px-2 py-1 bg-green-900 text-green-200 rounded";
+      statusIndicator.className = "w-3 h-3 rounded-full bg-green-500 status-online";
+      statusText.innerText = "ONLINE";
+      statusText.className = "text-xs font-bold px-3 py-1 rounded-full bg-green-500/20 text-green-300";
     } else {
-      statusBadge.innerText = "OFFLINE";
-      statusBadge.className = "text-xs font-bold px-2 py-1 bg-red-900 text-red-200 rounded";
+      statusIndicator.className = "w-3 h-3 rounded-full bg-red-500";
+      statusText.innerText = "OFFLINE";
+      statusText.className = "text-xs font-bold px-3 py-1 rounded-full bg-red-500/20 text-red-300";
     }
 
-    const dis = !online;
-    startBtn.disabled = dis;
-    stopBtn.disabled = dis;
-    interruptBtn.disabled = dis;
-    micBtn.disabled = dis;
-    sendTextBtn.disabled = dis;
-    setTopicBtn.disabled = dis;
-
-    memUpdateBtn.disabled = dis;
-    wipeA.disabled = dis;
-    wipeB.disabled = dis;
-    saveSessionBtn.disabled = dis;
-
-    directorUpdateBtn.disabled = dis;
-    aUpdateBtn.disabled = dis;
-    bUpdateBtn.disabled = dis;
+    const disabled = !online;
+    [startBtn, stopBtn, interruptBtn, micBtn, sendTextBtn, setTopicBtn,
+     memUpdateBtn, wipeA, wipeB, saveSessionBtn, directorUpdateBtn,
+     aUpdateBtn, bUpdateBtn].forEach(btn => btn.disabled = disabled);
   }
 
-  function addSystemMessage(text, color='yellow') {
+  function addSystemMessage(text, type = 'info') {
+    const colors = {
+      info: 'blue',
+      success: 'green',
+      warning: 'yellow',
+      error: 'red',
+      memory: 'purple'
+    };
+    const color = colors[type] || 'blue';
+    
     const div = document.createElement('div');
-    div.className = "flex justify-center my-2";
-    div.innerHTML = `<span class="text-[11px] font-mono bg-gray-900 border border-${color}-900 text-${color}-400 px-2 py-1 rounded">${escapeHtml(text)}</span>`;
+    div.className = "flex justify-center my-2 message-bubble";
+    div.innerHTML = `
+      <div class="glass px-4 py-2 rounded-full border border-${color}-500/30">
+        <span class="text-xs font-mono text-${color}-300">${escapeHtml(text)}</span>
+      </div>
+    `;
     transcript.appendChild(div);
     transcript.scrollTop = transcript.scrollHeight;
   }
@@ -294,16 +583,29 @@
   function addMessage(name, text, who) {
     const div = document.createElement('div');
     const isUser = who === 'user';
-    div.className = `flex flex-col ${isUser ? 'items-end' : 'items-start'}`;
+    div.className = `flex flex-col ${isUser ? 'items-end' : 'items-start'} message-bubble`;
 
-    let bubble = isUser ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200';
-    if (name === 'Alice') bubble = 'bg-indigo-900/80 text-indigo-100 border border-indigo-700';
-    if (name === 'Bob') bubble = 'bg-emerald-900/80 text-emerald-100 border border-emerald-700';
+    let bubbleClass = '';
+    let iconClass = '';
+    
+    if (isUser) {
+      bubbleClass = 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white border border-blue-400/30';
+      iconClass = 'fa-user';
+    } else if (name === 'Alice') {
+      bubbleClass = 'bg-gradient-to-br from-indigo-900/80 to-blue-900/80 text-indigo-100 border border-indigo-500/40';
+      iconClass = 'fa-user-astronaut';
+    } else if (name === 'Bob') {
+      bubbleClass = 'bg-gradient-to-br from-emerald-900/80 to-teal-900/80 text-emerald-100 border border-emerald-500/40';
+      iconClass = 'fa-user-astronaut';
+    }
 
     div.innerHTML = `
-      <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 px-1">${escapeHtml(name)}</span>
-      <div class="max-w-[85%] px-4 py-3 rounded-2xl text-sm ${bubble} shadow-sm">
-        ${escapeHtml(text)}
+      <div class="flex items-center gap-2 mb-1 px-2">
+        <i class="fas ${iconClass} text-xs"></i>
+        <span class="text-[10px] font-bold uppercase tracking-wider opacity-70">${escapeHtml(name)}</span>
+      </div>
+      <div class="max-w-[85%] px-5 py-3 rounded-2xl ${bubbleClass} shadow-lg backdrop-blur-sm">
+        <p class="text-sm leading-relaxed">${escapeHtml(text)}</p>
       </div>
     `;
     transcript.appendChild(div);
@@ -331,27 +633,81 @@
     }
   }
 
-  // WS connect
+  // Load TTS info
+  async function loadTTSInfo() {
+    try {
+      const response = await fetch('/tts_info');
+      const data = await response.json();
+      
+      if (data.provider === 'deepinfra') {
+        ttsModelSection.classList.remove('hidden');
+        // Could populate model selector here if needed
+      }
+    } catch (error) {
+      console.error('Failed to load TTS info:', error);
+    }
+  }
+
+  // Load voices
+  async function loadVoices() {
+    try {
+      const response = await fetch('/voices');
+      const data = await response.json();
+      const voices = data.voices || [];
+      
+      if (voices.length > 0) {
+        aVoice.innerHTML = '';
+        bVoice.innerHTML = '';
+        
+        voices.forEach(voice => {
+          const optionA = document.createElement('option');
+          optionA.value = voice;
+          optionA.textContent = voice;
+          aVoice.appendChild(optionA);
+          
+          const optionB = document.createElement('option');
+          optionB.value = voice;
+          optionB.textContent = voice;
+          bVoice.appendChild(optionB);
+        });
+        
+        if (voices.includes('af_heart')) aVoice.value = 'af_heart';
+        if (voices.includes('am_michael')) bVoice.value = 'am_michael';
+      }
+    } catch (error) {
+      console.error('Failed to load voices:', error);
+    }
+  }
+
+  // WebSocket connection with exponential backoff
+  let reconnectAttempts = 0;
+  const maxReconnectDelay = 30000; // 30 seconds max
+
   function connect() {
     ws = new WebSocket(`ws://${location.host}/ws/demo`);
 
     ws.onopen = () => {
       setOnline(true);
       transcript.innerHTML = "";
-      addSystemMessage("System ready", "green");
+      addSystemMessage("Neural link established • System online", "success");
+      reconnectAttempts = 0; // Reset on successful connection
     };
 
     ws.onclose = () => {
       setOnline(false);
-      addSystemMessage("Disconnected", "red");
+      addSystemMessage("Connection lost • Attempting reconnect...", "error");
       stopAudio();
+      
+      // Exponential backoff: 1s, 2s, 4s, 8s, ... up to 30s
+      reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), maxReconnectDelay);
+      setTimeout(connect, delay);
     };
 
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
 
       if (data.type === "session_state") {
-        // seed UI
         if (data.agents?.A) {
           aPrompt.value = data.agents.A.instructions || "";
           aVoice.value = data.agents.A.voice || "af_heart";
@@ -373,13 +729,12 @@
           memEnabled.checked = !!data.memory.enabled;
           memK.value = data.memory.k || 6;
           memMode.value = data.memory.mode || "lex";
-          memAvailable.innerText = avail ? "Memvid available" : "Memvid not installed (memory disabled)";
+          memAvailable.innerText = avail ? "✓ Memvid available" : "✗ Memvid not installed";
+          memAvailable.className = `text-[10px] mt-2 text-center ${avail ? 'text-green-400' : 'text-red-400'}`;
+          
           if (!avail) {
             memEnabled.disabled = true;
-            memUpdateBtn.disabled = true;
-            wipeA.disabled = true;
-            wipeB.disabled = true;
-            saveSessionBtn.disabled = true;
+            [memUpdateBtn, wipeA, wipeB, saveSessionBtn].forEach(btn => btn.disabled = true);
           }
         }
       }
@@ -401,32 +756,51 @@
       }
 
       if (data.type === "memory_retrieved") {
-        addSystemMessage(`🧠 ${data.agent} recalled memory`, "purple");
+        addSystemMessage(`🧠 ${data.agent} recalled memory context`, "memory");
       }
 
       if (data.type === "ok") {
-        addSystemMessage(`✅ ${data.what}`, "green");
+        addSystemMessage(`✓ ${data.what}`, "success");
       }
 
       if (data.type === "error") {
-        addSystemMessage(`❗ ${data.message}`, "red");
+        addSystemMessage(`✗ ${data.message}`, "error");
+      }
+      
+      if (data.type === "duet_ended") {
+        addSystemMessage(`Conversation ended • ${data.turns} turns completed`, "info");
       }
     };
   }
 
-  // Buttons
-  startBtn.onclick = () => ws.send(JSON.stringify({type: "start_duet"}));
-  stopBtn.onclick = () => ws.send(JSON.stringify({type: "stop"}));
+  // Button handlers
+  startBtn.onclick = () => {
+    ws.send(JSON.stringify({type: "start_duet"}));
+    startBtn.classList.add('pulse-active');
+  };
+  
+  stopBtn.onclick = () => {
+    ws.send(JSON.stringify({type: "stop"}));
+    startBtn.classList.remove('pulse-active');
+  };
+  
   interruptBtn.onclick = () => {
     ws.send(JSON.stringify({type: "interrupt"}));
     stopAudio();
   };
 
-  sendTextBtn.onclick = () => {
+  // Send text message handler
+  function sendTextMessage() {
     const t = userText.value.trim();
     if (!t) return;
     ws.send(JSON.stringify({type: "user_text", text: t}));
     userText.value = "";
+  }
+
+  sendTextBtn.onclick = sendTextMessage;
+  
+  userText.onkeypress = (e) => {
+    if (e.key === 'Enter') sendTextMessage();
   };
 
   setTopicBtn.onclick = () => {
@@ -478,7 +852,7 @@
     }));
   };
 
-  // PTT mic
+  // PTT Microphone
   micBtn.onmousedown = async () => {
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -510,12 +884,12 @@
         ws.send(JSON.stringify({ type: "user_audio", pcm16_b64: btoa(bin) }));
       };
 
-      micBtn.classList.remove('bg-blue-600');
-      micBtn.classList.add('bg-red-600', 'recording-pulse');
-      micBtn.innerHTML = `<i class="fas fa-wave-square"></i><span>LISTENING...</span>`;
+      micBtn.className = "btn w-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-black py-6 rounded-2xl shadow-2xl transition-all flex items-center justify-center gap-3 group recording-pulse";
+      micBtn.innerHTML = '<i class="fas fa-wave-square text-2xl"></i><span class="text-lg tracking-wider">LISTENING...</span>';
 
     } catch (err) {
-      console.error(err);
+      console.error('Microphone error:', err);
+      addSystemMessage('Microphone access denied', 'error');
     }
   };
 
@@ -526,64 +900,21 @@
       if (audioCtx) audioCtx.close();
     } catch (_) {}
 
-    micStream = null; scriptProcessor = null; audioCtx = null;
+    micStream = null;
+    scriptProcessor = null;
+    audioCtx = null;
 
-    micBtn.classList.add('bg-blue-600');
-    micBtn.classList.remove('bg-red-600', 'recording-pulse');
-    micBtn.innerHTML = `<i class="fas fa-microphone text-xl"></i><span>HOLD TO SPEAK (PTT)</span>`;
+    micBtn.className = "btn w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-black py-6 rounded-2xl shadow-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-3 group glow-blue";
+    micBtn.innerHTML = '<i class="fas fa-microphone text-2xl group-hover:scale-110 transition-transform"></i><span class="text-lg tracking-wider">HOLD TO SPEAK</span>';
   };
 
-  // Load available voices from server
-  async function loadVoices() {
-    try {
-      const response = await fetch('/voices');
-      const data = await response.json();
-      const voices = data.voices || [];
-      
-      if (voices.length > 0) {
-        // Clear existing options
-        aVoice.innerHTML = '';
-        bVoice.innerHTML = '';
-        
-        // Populate with dynamic voices
-        voices.forEach(voice => {
-          const optionA = document.createElement('option');
-          optionA.value = voice;
-          optionA.textContent = voice;
-          aVoice.appendChild(optionA);
-          
-          const optionB = document.createElement('option');
-          optionB.value = voice;
-          optionB.textContent = voice;
-          bVoice.appendChild(optionB);
-        });
-        
-        // Set default values if they exist
-        if (voices.includes('af_heart')) aVoice.value = 'af_heart';
-        if (voices.includes('am_michael')) bVoice.value = 'am_michael';
-      }
-    } catch (error) {
-      console.error('Failed to load voices:', error);
-      // Fallback to hardcoded voices if fetch fails
-    }
-  }
-
-  // Boot
+  // Initialize
   setOnline(false);
-  loadVoices(); // Load voices on startup
+  loadTTSInfo();
+  loadVoices();
   connect();
-
-  // Default director rules
-  directorRules.value = directorRules.value || [
-    "Keep it conversational and avoid repetition.",
-    "Each turn: 1–3 short paragraphs.",
-    "Ask a short question every few turns.",
-    "If the user interrupts, follow the new direction immediately."
-  ].join("\\n");
 })();
 </script>
 
 </body>
 </html>
-
-

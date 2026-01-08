@@ -68,7 +68,7 @@ STT_PROVIDER = os.getenv("STT_PROVIDER", "local").lower().strip()     # "local" 
 TTS_PROVIDER = os.getenv("TTS_PROVIDER", "local").lower().strip()     # "local" | "deepinfra"
 DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
 DEEPINFRA_WHISPER_MODEL = os.getenv("DEEPINFRA_WHISPER_MODEL", "openai/whisper-large-v3-turbo")
-DEEPINFRA_KOKORO_ENDPOINT = os.getenv("DEEPINFRA_KOKORO_ENDPOINT", "https://api.deepinfra.com/v1/inference/hexgrad/Kokoro-82M")
+DEEPINFRA_TTS_MODEL = os.getenv("DEEPINFRA_TTS_MODEL", "hexgrad/Kokoro-82M")  # Model to use for TTS
 KOKORO_LANG = os.getenv("KOKORO_LANG", "a")
 
 # Local faster-whisper:
@@ -214,15 +214,52 @@ class TTSLocalKokoro:
             return []
 
 
-class TTSDeepInfraKokoro:
-    def __init__(self, api_key: str, endpoint: str, lang_code: str = "a"):
+class TTSDeepInfra:
+    """
+    Unified DeepInfra TTS provider supporting multiple models:
+    - hexgrad/Kokoro-82M (voices: af_heart, am_michael, am_adam, af_sky, etc.)
+    - resemblyai/chatterbox-turbo (OpenAI-compatible voices for consistency)
+    - canopylabs/orpheus-3b-0.1-ft (advanced expressive TTS)
+    """
+    
+    # Model configurations
+    MODELS = {
+        "hexgrad/Kokoro-82M": {
+            "voices": ["af_heart", "am_michael", "am_adam", "af_sky", "af_bella", "af_nicole", "af_sarah", "am_echo"],
+            "supports_lang_code": True,
+            "sample_rate": 24000
+        },
+        "resemblyai/chatterbox-turbo": {
+            "voices": ["chatterbox_default", "nova", "alloy", "echo", "fable", "onyx", "shimmer"],
+            "supports_lang_code": False,
+            "sample_rate": 24000
+        },
+        "canopylabs/orpheus-3b-0.1-ft": {
+            "voices": ["orpheus_default", "expressive", "narrator"],
+            "supports_lang_code": False,
+            "sample_rate": 24000
+        }
+    }
+    
+    def __init__(self, api_key: str, model: str = "hexgrad/Kokoro-82M", lang_code: str = "a"):
         self.api_key = api_key
-        self.endpoint = endpoint
+        self.model = model
+        self.endpoint = f"https://api.deepinfra.com/v1/inference/{model}"
         self.lang = lang_code
-        self.sr = 24000
+        
+        # Get model config
+        config = self.MODELS.get(model, self.MODELS["hexgrad/Kokoro-82M"])
+        self.sr = config["sample_rate"]
+        self.supports_lang_code = config["supports_lang_code"]
+        self.model_voices = config["voices"]
 
     def synth(self, text: str, voice: str) -> np.ndarray:
-        payload = {"text": text, "voice": voice, "lang_code": self.lang}
+        # Build payload based on model type
+        if self.supports_lang_code:
+            payload = {"text": text, "voice": voice, "lang_code": self.lang}
+        else:
+            payload = {"text": text, "voice": voice}
+        
         headers = {"Authorization": f"bearer {self.api_key}"}
         try:
             r = requests.post(self.endpoint, json=payload, headers=headers, timeout=60)
@@ -232,14 +269,22 @@ class TTSDeepInfraKokoro:
                     if data.ndim > 1:
                         data = data.mean(axis=1)  # downmix if needed
                     return data.astype(np.float32)
-        except Exception:
-            pass
+            else:
+                print(f"TTS API error: HTTP {r.status_code} - {r.text[:200]}")
+        except requests.RequestException as e:
+            print(f"TTS network error: {e}")
+        except Exception as e:
+            print(f"TTS unexpected error: {e}")
         return np.zeros((0,), dtype=np.float32)
     
     def get_voices(self) -> List[str]:
-        """Return list of available voices"""
-        # Common Kokoro voices
-        return ["af_heart", "am_michael", "am_adam", "af_sky", "af_bella", "af_nicole", "af_sarah", "am_echo"]
+        """Return list of available voices for current model"""
+        return self.model_voices
+    
+    @classmethod
+    def get_available_models(cls) -> List[str]:
+        """Return list of all available TTS models"""
+        return list(cls.MODELS.keys())
 
 
 # ---------------------------
@@ -489,15 +534,27 @@ llm = LLMProvider(
     api_mode=LLM_API,
 )
 
-if STT_PROVIDER == "deepinfra":
+# STT provider
+try:
+    if STT_PROVIDER == "deepinfra":
+        stt = STTDeepInfraWhisper(DEEPINFRA_API_KEY, DEEPINFRA_WHISPER_MODEL)
+    else:
+        stt = STTLocalFasterWhisper(WHISPER_MODEL, WHISPER_DEVICE, WHISPER_COMPUTE)
+except Exception as e:
+    print(f"Warning: Could not initialize STT provider: {e}")
+    print("Using DeepInfra as fallback (requires DEEPINFRA_API_KEY)")
     stt = STTDeepInfraWhisper(DEEPINFRA_API_KEY, DEEPINFRA_WHISPER_MODEL)
-else:
-    stt = STTLocalFasterWhisper(WHISPER_MODEL, WHISPER_DEVICE, WHISPER_COMPUTE)
 
-if TTS_PROVIDER == "deepinfra":
-    tts = TTSDeepInfraKokoro(DEEPINFRA_API_KEY, DEEPINFRA_KOKORO_ENDPOINT, KOKORO_LANG)
-else:
-    tts = TTSLocalKokoro(KOKORO_LANG)
+# TTS provider
+try:
+    if TTS_PROVIDER == "deepinfra":
+        tts = TTSDeepInfra(DEEPINFRA_API_KEY, DEEPINFRA_TTS_MODEL, KOKORO_LANG)
+    else:
+        tts = TTSLocalKokoro(KOKORO_LANG)
+except Exception as e:
+    print(f"Warning: Could not initialize TTS provider: {e}")
+    print("Using DeepInfra as fallback (requires DEEPINFRA_API_KEY)")
+    tts = TTSDeepInfra(DEEPINFRA_API_KEY, DEEPINFRA_TTS_MODEL, KOKORO_LANG)
 
 
 # ---------------------------
@@ -759,6 +816,28 @@ async def get_voices():
     """Return list of available TTS voices"""
     voices = tts.get_voices()
     return JSONResponse({"voices": voices})
+
+
+@app.get("/tts_models")
+async def get_tts_models():
+    """Return list of available TTS models (for DeepInfra provider)"""
+    if TTS_PROVIDER == "deepinfra":
+        models = TTSDeepInfra.get_available_models()
+        return JSONResponse({"models": models, "current": DEEPINFRA_TTS_MODEL})
+    return JSONResponse({"models": [], "current": "local"})
+
+
+@app.get("/tts_info")
+async def get_tts_info():
+    """Return current TTS provider and configuration info"""
+    info = {
+        "provider": TTS_PROVIDER,
+        "voices": tts.get_voices()
+    }
+    if TTS_PROVIDER == "deepinfra":
+        info["model"] = DEEPINFRA_TTS_MODEL
+        info["available_models"] = TTSDeepInfra.get_available_models()
+    return JSONResponse(info)
 
 
 # ---------------------------
