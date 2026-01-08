@@ -1,36 +1,49 @@
 # AI Duet FastAPI
 
-A real-time conversational AI duet system where two AI agents converse with each other in multiple languages, with support for user interruption, voice interaction, and customizable personalities.
+A sophisticated real-time conversational AI system featuring two AI agents (LLM↔LLM) that converse with each other, complete with user interruption, push-to-talk (PTT), persistent memory, and customizable personalities.
 
 ## Overview
 
-This system enables two AI agents (Agent A and Agent B) to have real-time conversations with each other. Each agent has its own personality, language preference (English or Spanish), and voice characteristics. Users can listen to the conversation, interrupt with text or voice input, and customize agent behavior on the fly.
+AI Duet enables two AI agents to have autonomous conversations while allowing users to interrupt, inject text, change system prompts, select voices, and manage conversation flow through a director. Each agent has persistent memory powered by Memvid SDK, creating more coherent and context-aware conversations.
 
-## Features
+## Key Features
 
-- **Real-time AI Duet**: Two AI agents converse back-and-forth automatically
-- **Multi-language Support**: Agents can speak English or Spanish with appropriate TTS voices
-- **Voice Interaction**: Users can speak to interrupt/participate via real-time STT
-- **WebSocket API**: Real-time bidirectional communication for audio/text streaming
-- **Customizable Agents**: Modify agent instructions, voices, and languages during runtime
-- **Voice Activity Detection**: Real-time VAD for detecting speech segments
-- **High-quality TTS**: DeepInfra Kokoro-82M for natural-sounding speech synthesis
-- **Fast STT**: faster-whisper for accurate speech-to-text transcription
-- **Powerful LLM**: Fireworks AI Llama v3.1 405B for intelligent conversation
+### Core Capabilities
+- **2 AI Agents (LLM↔LLM)**: Two agents converse autonomously with distinct personalities
+- **User Interaction**: Interrupt anytime, inject text mid-topic, or use push-to-talk (PTT)
+- **Real-time Voice**: Speech-to-text (STT) and text-to-speech (TTS) with voice customization
+- **Persistent Memory**: Per-agent memory using Memvid .mv2 format for long-term context
+- **Director Controls**: Set max turns, turn length, stop phrases, and conversation rules
+- **Multiple LLM Providers**: OpenAI, Fireworks, Ollama, or any OpenAI-compatible endpoint
+- **Flexible STT/TTS**: Local (faster-whisper + Kokoro) or cloud (DeepInfra)
+
+### Agent Customization
+- Modify system prompts on-the-fly
+- Select from multiple TTS voices (dynamically loaded)
+- Set debate topics with automatic agent positioning
+- Individual memory management per agent
+
+### Memory System
+- **Memvid Integration**: Persistent, searchable memory for each agent
+- **Memory Modes**: Lexical (lex), semantic (sem), or hybrid search
+- **Memory Actions**: Put, find, wipe, and save session snapshots
+- **Context Retrieval**: Automatically pulls relevant memories during conversations
 
 ## Architecture
 
 ```
 ┌─────────────────┐     WebSocket     ┌─────────────────┐
-│   Client App    │◄────────────────►│   FastAPI Server │
+│   Web Client    │◄────────────────►│   FastAPI Server │
+│  (index.html)   │                   │    (main.py)     │
 └─────────────────┘                   └─────────────────┘
-         │                                    │
-         │ Audio/Text                        │ AI Services
-         ▼                                    ▼
+         │                                     │
+         │ Audio/Text                         │ Providers
+         ▼                                     ▼
 ┌─────────────────┐                   ┌─────────────────┐
-│   User Input    │                   │   LLM (Fireworks)│
-│  - Voice (STT)  │                   │   TTS (DeepInfra)│
-│  - Text Input   │                   │   STT (Whisper) │
+│   User Input    │                   │  LLM Provider   │
+│  - PTT Voice    │                   │  STT Provider   │
+│  - Text Input   │                   │  TTS Provider   │
+│  - Controls     │                   │  Memvid Memory  │
 └─────────────────┘                   └─────────────────┘
 ```
 
@@ -40,221 +53,263 @@ This system enables two AI agents (Agent A and Agent B) to have real-time conver
 
 - Python 3.8+
 - FFmpeg (for audio processing)
-- API keys for:
-  - Fireworks AI (for LLM)
-  - DeepInfra (for TTS)
+- API keys (depending on provider choice):
+  - OpenAI API key (for OpenAI LLM)
+  - OR Fireworks API key (for Fireworks LLM)
+  - DeepInfra API key (optional, for cloud STT/TTS)
 
 ### Setup
 
-1. Clone the repository:
+1. **Clone the repository**:
    ```bash
    git clone <repository-url>
    cd ai-duet-fastapi
    ```
 
-2. Install dependencies:
+2. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Set up environment variables:
+3. **Configure environment**:
    ```bash
    cp .env.example .env
-   # Edit .env with your API keys
+   # Edit .env with your API keys and preferences
    ```
 
-4. Run the server:
+4. **Run the server**:
    ```bash
    uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
 
+5. **Open the UI**:
+   Navigate to `http://localhost:8000` in your browser
+
 ## Configuration
 
-### Environment Variables
+### LLM Provider Options
 
-Create a `.env` file with the following:
-
+#### OpenAI (Default)
 ```bash
-# Required API Keys
-FIREWORKS_API_KEY=your_fireworks_api_key_here
-DEEPINFRA_API_KEY=your_deepinfra_api_key_here
-
-# Optional Settings
-WHISPER_MODEL_SIZE=small  # tiny, base, small, medium, large
-WHISPER_DEVICE=cpu        # cpu or cuda
-WHISPER_COMPUTE_TYPE=int8 # float16, int8, int8_float16
+export OPENAI_API_KEY="sk-..."
+export LLM_MODEL="gpt-4o-mini"
+export LLM_API="chat"
 ```
 
-### Agent Configuration
+#### Fireworks AI
+```bash
+export OPENAI_API_KEY="fw_..."
+export OPENAI_BASE_URL="https://api.fireworks.ai/inference/v1"
+export LLM_API="chat"
+export LLM_MODEL="accounts/fireworks/models/deepseek-v3"
+```
 
-Default agents are configured in `main.py`:
+#### Ollama (Local)
+```bash
+export OPENAI_API_KEY="ollama"
+export OPENAI_BASE_URL="http://localhost:11434/v1"
+export LLM_API="chat"  # or "responses"
+export LLM_MODEL="llama3.2"
+```
 
-- **Agent A**: English-speaking, helpful and curious personality
-- **Agent B**: Spanish-speaking, concise and witty personality
+### STT/TTS Provider Options
 
-You can modify these defaults or update agents dynamically via the WebSocket API.
+#### Local (Default)
+```bash
+export STT_PROVIDER="local"
+export TTS_PROVIDER="local"
+export WHISPER_MODEL="small"
+export WHISPER_DEVICE="cpu"
+export KOKORO_LANG="a"
+```
+
+#### DeepInfra (Cloud)
+```bash
+export STT_PROVIDER="deepinfra"
+export TTS_PROVIDER="deepinfra"
+export DEEPINFRA_API_KEY="your_key"
+```
+
+### Memory Configuration
+
+```bash
+export MEMORY_DEFAULT_ENABLED="true"
+export MEMORY_DEFAULT_K="6"
+export MEMORY_DEFAULT_MODE="lex"  # lex, sem, or hyb
+```
 
 ## Usage
 
-### Starting the Server
+### Web Interface
 
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
+The web UI provides a comprehensive control panel with:
 
-Server will be available at `http://localhost:8000`
+1. **Status & Controls**
+   - Start/Stop duet
+   - Interrupt current speaker
+   - Connection status
 
-### WebSocket Client
+2. **User Input**
+   - Text injection: Type and send messages mid-conversation
+   - Push-to-Talk (PTT): Hold mic button to speak
+   - Quick debate topics: Set opposing viewpoints instantly
 
-Connect to the WebSocket endpoint:
-```
-ws://localhost:8000/ws/{session_id}
-```
+3. **Memory Management**
+   - Enable/disable memory
+   - Configure retrieval parameters (k, mode)
+   - Wipe individual agent memories
+   - Save session snapshots
 
-Where `{session_id}` is a unique identifier for your session.
+4. **Director Settings**
+   - Set conversation rules
+   - Configure max turns and turn length
+   - Define stop phrases
 
-### Basic WebSocket Commands
+5. **Agent Configuration**
+   - Customize system prompts
+   - Select voices (dynamically loaded)
+   - Update settings on-the-fly
 
-#### 1. Start the Duet
+### WebSocket API
+
+Connect to `ws://localhost:8000/ws/{session_id}`
+
+#### Available Commands
+
+**Start/Stop Conversation**
 ```json
 {"type": "start_duet"}
-```
-
-#### 2. Stop the Conversation
-```json
 {"type": "stop"}
-```
-
-#### 3. Interrupt Current Speaker
-```json
 {"type": "interrupt"}
 ```
 
-#### 4. Send Text Input
+**User Input**
 ```json
-{"type": "user_text", "text": "Hello agents!"}
+{"type": "user_text", "text": "Your message here"}
+{"type": "user_audio", "pcm16_b64": "base64_encoded_audio"}
 ```
 
-#### 5. Send Audio Input
-```json
-{
-  "type": "user_audio",
-  "pcm16_b64": "base64_encoded_pcm16_audio_here"
-}
-```
-
-#### 6. Update Agent Settings
+**Agent Configuration**
 ```json
 {
   "type": "set_agent",
   "agent": "A",
-  "instructions": "You are now a French philosopher.",
-  "voice": "fr_male1",
-  "lang": "fr"
+  "instructions": "You are a philosopher...",
+  "voice": "af_heart"
 }
 ```
 
-#### 7. Reset Session
+**Director Configuration**
 ```json
-{"type": "reset"}
-```
-
-### Server Responses
-
-The server sends various message types:
-
-- `session_state`: Initial session information
-- `agent_text`: Agent's text response
-- `agent_audio`: Agent's audio response (base64 encoded WAV)
-- `user_text_ack`: Acknowledgement of user text
-- `stop_audio`: Command to stop current audio playback
-- `ok`: General success response
-- `error`: Error messages
-
-## API Reference
-
-### WebSocket Endpoint
-
-`GET /ws/{session_id}`
-
-Establishes a WebSocket connection for real-time communication.
-
-### Health Check
-
-`GET /health`
-
-Returns server status.
-
-## Example Client
-
-A basic HTML/JavaScript client is included in `client_example.html`. This provides:
-
-- WebSocket connection management
-- Real-time audio playback
-- Text chat interface
-- Voice recording (using browser MediaRecorder API)
-- Controls for starting/stopping duet
-
-## Advanced Configuration
-
-### Changing LLM Model
-
-Modify the `LLM` class initialization in `main.py`:
-
-```python
-class LLM:
-    def __init__(self, model: str = "accounts/fireworks/models/llama-v3p1-405b-instruct"):
-        # Change to other Fireworks models as needed
-```
-
-### Customizing TTS Voices
-
-Update the `TTS` class voices dictionary:
-
-```python
-self.voices = {
-    "en": "am_adam",      # English male
-    "es": "es_male1",     # Spanish male
-    "fr": "fr_female1",   # Add French voice
-    # Add more languages as needed
+{
+  "type": "set_director",
+  "director": {
+    "instructions": "Keep it brief",
+    "max_turns": 100,
+    "turn_length": "short",
+    "stop_phrase": "[[END]]"
+  }
 }
 ```
 
-### Adjusting VAD Parameters
-
-Modify `VADSegmenter` initialization:
-
-```python
-vad = VADSegmenter(
-    sample_rate=16000,
-    frame_ms=20,
-    aggressiveness=2,      # 0-3 (3 most aggressive)
-    start_trigger_ms=200,  # ms of speech to start
-    end_trigger_ms=600     # ms of silence to end
-)
+**Memory Operations**
+```json
+{"type": "set_memory", "enabled": true, "k": 6, "mode": "lex"}
+{"type": "wipe_memory", "agent": "A"}
+{"type": "save_session_to_memory"}
 ```
+
+**Quick Debate**
+```json
+{"type": "set_topic", "topic": "AI Safety"}
+```
+
+#### Server Responses
+
+- `session_state`: Initial session configuration
+- `agent_text`: Agent's text response
+- `agent_audio`: Agent's audio (base64 WAV)
+- `user_text_ack`: User message acknowledged
+- `memory_retrieved`: Memory context loaded
+- `stop_audio`: Stop current playback
+- `ok`: Operation successful
+- `error`: Error message
+
+## API Endpoints
+
+### `GET /`
+Serves the web UI (index.html)
+
+### `GET /voices`
+Returns list of available TTS voices
+```json
+{"voices": ["af_heart", "am_michael", "am_adam", "af_sky", ...]}
+```
+
+### `WS /ws/{session_id}`
+WebSocket endpoint for real-time communication
+
+## Advanced Features
+
+### Turn Length Configuration
+- **Short**: ~160 tokens
+- **Medium**: ~260 tokens (default)
+- **Long**: ~420 tokens
+
+### Memory Retrieval
+- Automatically retrieves top-k relevant memories before each agent turn
+- Supports lexical (keyword) and semantic (meaning) search
+- Presents memories as context to the LLM
+
+### Voice Activity Detection (VAD)
+- Real-time speech detection with configurable sensitivity
+- ~600ms silence cutoff for natural conversation flow
+- Optimized for 16kHz mono PCM audio
+
+## Development
+
+### Project Structure
+```
+ai-duet-fastapi/
+├── main.py              # FastAPI backend with all providers
+├── index.html           # Tailwind UI frontend
+├── requirements.txt     # Python dependencies
+├── .env.example         # Environment configuration template
+├── README.md           # This file
+└── memories/           # Per-session memory storage (created at runtime)
+```
+
+### Key Classes
+
+- **LLMProvider**: Unified interface for OpenAI/Fireworks/Ollama
+- **STTLocalFasterWhisper**: Local speech-to-text
+- **TTSLocalKokoro**: Local text-to-speech
+- **MemvidAgentMemory**: Per-agent persistent memory
+- **VADSegmenter**: Voice activity detection
+- **Session**: Manages conversation state
+- **Agent**: Represents individual AI agent
+- **Director**: Controls conversation flow
 
 ## Performance Considerations
 
-- **STT**: Uses faster-whisper with `small` model by default for balance of speed/accuracy
-- **TTS**: DeepInfra Kokoro-82M provides good quality with reasonable latency
-- **LLM**: Fireworks AI offers fast inference with large context windows
-- **Memory**: Transcripts limited to last 40 messages per agent
-- **Concurrency**: Uses async/await for non-blocking I/O operations
+- **Local STT**: faster-whisper on CPU is fast for "small" model
+- **Local TTS**: Kokoro provides good quality with reasonable latency
+- **Memory**: Transcript limited to last 30 messages per agent for context
+- **Concurrency**: Async/await for non-blocking operations
+- **Memory Retrieval**: Configurable k (default 6) balances context vs speed
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **No audio output**: Check DeepInfra API key and network connectivity
-2. **Slow responses**: Consider using smaller whisper model or GPU acceleration
-3. **WebSocket disconnections**: Ensure client reconnects with same session_id
-4. **High memory usage**: Reduce transcript history or use smaller models
+1. **Memvid not available**: Memory features will be disabled. Install with `pip install memvid-sdk`
+2. **No audio output**: Check TTS provider configuration and API keys
+3. **Slow responses**: Consider using smaller whisper model or GPU acceleration
+4. **WebSocket disconnections**: Client should reconnect with same session_id to preserve state
 
-### Logging
+### Debug Logging
 
-Enable debug logging by adding to `main.py`:
-
+Enable debug mode in development:
 ```python
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -266,11 +321,20 @@ MIT License
 
 ## Acknowledgments
 
-- [Fireworks AI](https://fireworks.ai) for LLM inference
-- [DeepInfra](https://deepinfra.com) for TTS services
+- [OpenAI](https://openai.com) for GPT models and API standards
+- [Fireworks AI](https://fireworks.ai) for fast LLM inference
+- [Ollama](https://ollama.com) for local LLM hosting
+- [DeepInfra](https://deepinfra.com) for cloud STT/TTS services
+- [Memvid](https://memvid.com) for persistent memory SDK
 - [OpenAI Whisper](https://github.com/openai/whisper) for speech recognition
-- [FastAPI](https://fastapi.tiangolo.com) for web framework
+- [Kokoro](https://github.com/hexgrad/kokoro) for text-to-speech
+- [FastAPI](https://fastapi.tiangolo.com) for the web framework
+- [Tailwind CSS](https://tailwindcss.com) for the UI styling
 
 ## Support
 
 For issues and feature requests, please open an issue on the GitHub repository.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
