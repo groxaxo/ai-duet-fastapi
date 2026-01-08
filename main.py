@@ -218,7 +218,7 @@ class TTSDeepInfra:
     """
     Unified DeepInfra TTS provider supporting multiple models:
     - hexgrad/Kokoro-82M (voices: af_heart, am_michael, am_adam, af_sky, etc.)
-    - resemblyai/chatterbox-turbo (voices: chatterbox_default, various emotion styles)
+    - resemblyai/chatterbox-turbo (OpenAI-compatible voices for consistency)
     - canopylabs/orpheus-3b-0.1-ft (advanced expressive TTS)
     """
     
@@ -269,8 +269,12 @@ class TTSDeepInfra:
                     if data.ndim > 1:
                         data = data.mean(axis=1)  # downmix if needed
                     return data.astype(np.float32)
+            else:
+                print(f"TTS API error: HTTP {r.status_code} - {r.text[:200]}")
+        except requests.RequestException as e:
+            print(f"TTS network error: {e}")
         except Exception as e:
-            print(f"TTS Error: {e}")
+            print(f"TTS unexpected error: {e}")
         return np.zeros((0,), dtype=np.float32)
     
     def get_voices(self) -> List[str]:

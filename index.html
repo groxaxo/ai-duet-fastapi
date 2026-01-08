@@ -679,7 +679,10 @@
     }
   }
 
-  // WebSocket connection
+  // WebSocket connection with exponential backoff
+  let reconnectAttempts = 0;
+  const maxReconnectDelay = 30000; // 30 seconds max
+
   function connect() {
     ws = new WebSocket(`ws://${location.host}/ws/demo`);
 
@@ -687,13 +690,18 @@
       setOnline(true);
       transcript.innerHTML = "";
       addSystemMessage("Neural link established • System online", "success");
+      reconnectAttempts = 0; // Reset on successful connection
     };
 
     ws.onclose = () => {
       setOnline(false);
       addSystemMessage("Connection lost • Attempting reconnect...", "error");
       stopAudio();
-      setTimeout(connect, 3000);
+      
+      // Exponential backoff: 1s, 2s, 4s, 8s, ... up to 30s
+      reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), maxReconnectDelay);
+      setTimeout(connect, delay);
     };
 
     ws.onmessage = (e) => {
@@ -781,15 +789,18 @@
     stopAudio();
   };
 
-  sendTextBtn.onclick = () => {
+  // Send text message handler
+  function sendTextMessage() {
     const t = userText.value.trim();
     if (!t) return;
     ws.send(JSON.stringify({type: "user_text", text: t}));
     userText.value = "";
-  };
+  }
+
+  sendTextBtn.onclick = sendTextMessage;
   
   userText.onkeypress = (e) => {
-    if (e.key === 'Enter') sendTextBtn.onclick();
+    if (e.key === 'Enter') sendTextMessage();
   };
 
   setTopicBtn.onclick = () => {
