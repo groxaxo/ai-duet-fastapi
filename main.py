@@ -343,11 +343,22 @@ def max_tokens_from_turn_length(turn_length: str) -> int:
 # ---------- Globals ----------
 
 llm = LLM(provider=LLM_PROVIDER, model=LLM_MODEL)
-stt = STT()
 
-DEEPINFRA_API_KEY: Optional[str] = os.getenv("DEEPINFRA_API_KEY")  # Set env var
-tts_en = TTS(api_key=DEEPINFRA_API_KEY, lang="en")  # type: ignore
-tts_es = TTS(api_key=DEEPINFRA_API_KEY, lang="es")  # Spanish  # type: ignore
+# Initialize STT/TTS with error handling
+try:
+    stt = STT()
+except Exception as e:
+    print(f"Warning: Could not initialize STT: {e}")
+    stt = None  # type: ignore
+
+try:
+    DEEPINFRA_API_KEY: Optional[str] = os.getenv("DEEPINFRA_API_KEY")
+    tts_en = TTS(api_key=DEEPINFRA_API_KEY, lang="en")  # type: ignore
+    tts_es = TTS(api_key=DEEPINFRA_API_KEY, lang="es")  # Spanish  # type: ignore
+except Exception as e:
+    print(f"Warning: Could not initialize TTS: {e}")
+    tts_en = None  # type: ignore
+    tts_es = None  # type: ignore
 
 sessions: Dict[str, Session] = {}
 
@@ -421,7 +432,14 @@ async def speak_agent_turn(ws: WebSocket, session: Session, agent_id: str):
     if session.cancel_speaking.is_set():
         return
 
+    # TTS - skip if not available
+    if tts_en is None and tts_es is None:
+        return
+        
     tts = tts_en if agent.lang == "en" else tts_es
+    if tts is None:
+        return
+        
     audio = await asyncio.to_thread(tts.synth, text, agent.voice, 1.0)
     wav = float32_to_wav_bytes(audio, tts.sr)
 
@@ -622,6 +640,13 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                     )
 
             elif mtype == "user_audio":
+                # Skip if STT not available
+                if stt is None:
+                    await ws.send_text(
+                        json.dumps({"type": "error", "message": "STT not available"})
+                    )
+                    continue
+                    
                 chunk = b64d(data["pcm16_b64"])
                 utterances = vad.push(chunk)
                 for utt in utterances:
