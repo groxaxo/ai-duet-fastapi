@@ -14,7 +14,8 @@ import soundfile as sf
 import webrtcvad
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 
 # ---------------------------
@@ -974,7 +975,12 @@ async def tts_api(request: TTSRequest):
 # Serve the UI
 # ---------------------------
 INDEX_HTML_PATH = os.path.join(os.path.dirname(__file__), "index.html")
-DEMO_HTML_PATH = os.path.join(os.path.dirname(__file__), "demo", "index.html")
+DEMO_DIST_PATH = os.path.join(os.path.dirname(__file__), "demo", "dist")
+DEMO_INDEX_PATH = os.path.join(DEMO_DIST_PATH, "index.html")
+
+# Mount static files for demo if dist exists
+if os.path.exists(DEMO_DIST_PATH):
+    app.mount("/demo/assets", StaticFiles(directory=os.path.join(DEMO_DIST_PATH, "assets")), name="demo-assets")
 
 @app.get("/")
 async def root():
@@ -987,7 +993,12 @@ async def root():
 @app.get("/demo")
 async def demo():
     """Serve the retro messenger demo"""
-    if os.path.exists(DEMO_HTML_PATH):
-        with open(DEMO_HTML_PATH, "r", encoding="utf-8") as f:
+    if os.path.exists(DEMO_INDEX_PATH):
+        with open(DEMO_INDEX_PATH, "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
-    return HTMLResponse("<h3>Demo not found. Please build the demo first.</h3>")
+    return HTMLResponse("""
+        <h3>Demo not found</h3>
+        <p>Please build the demo first:</p>
+        <pre>cd demo && npm install && npm run build</pre>
+        <p>Then restart the server.</p>
+    """)
