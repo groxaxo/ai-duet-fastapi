@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
+// Configuration
+const TTS_MAX_LENGTH = 500; // Maximum characters to send to TTS
+
 // Conversation presets with different tones
 const CONVERSATION_PRESETS = [
   {
@@ -187,7 +190,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: text.substring(0, 500), // Limit length for TTS
+          text: text.substring(0, TTS_MAX_LENGTH),
           tts_model: selectedTtsModel
         })
       })

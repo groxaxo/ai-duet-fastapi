@@ -77,6 +77,10 @@ WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")
 
+# Demo API configuration
+DEMO_CHAT_HISTORY_LIMIT = 10  # Number of recent messages to include for context
+DEMO_TTS_MAX_LENGTH = 500  # Maximum characters to send to TTS
+
 # Memory defaults
 MEMORY_DEFAULT_ENABLED = os.getenv("MEMORY_DEFAULT_ENABLED", "true").lower() == "true"
 MEMORY_DEFAULT_K = int(os.getenv("MEMORY_DEFAULT_K", "6"))
@@ -848,13 +852,14 @@ async def get_tts_info():
 async def get_tts_models_api():
     """Return available TTS models for the demo"""
     models = []
-    current_model = "Local Kokoro"
+    current_model = "local"
     
     if TTS_PROVIDER == "deepinfra":
         models = TTSDeepInfra.get_available_models()
         current_model = DEEPINFRA_TTS_MODEL
     else:
-        models = ["Local Kokoro"]
+        models = ["local"]
+        current_model = "local"
     
     return JSONResponse({
         "models": models,
@@ -905,7 +910,7 @@ async def chat_api(request: ChatRequest):
         # Build messages from conversation history
         messages = []
         if request.conversation_history:
-            for msg in request.conversation_history[-10:]:  # Last 10 messages for context
+            for msg in request.conversation_history[-DEMO_CHAT_HISTORY_LIMIT:]:
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
                 if role in ["user", "assistant"]:
