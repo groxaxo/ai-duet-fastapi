@@ -14,7 +14,8 @@ import soundfile as sf
 import webrtcvad
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 
 # ---------------------------
@@ -75,6 +76,10 @@ KOKORO_LANG = os.getenv("KOKORO_LANG", "a")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")
+
+# Demo API configuration
+DEMO_CHAT_HISTORY_LIMIT = 10  # Number of recent messages to include for context
+DEMO_TTS_MAX_LENGTH = 500  # Maximum characters to send to TTS
 
 # Memory defaults
 MEMORY_DEFAULT_ENABLED = os.getenv("MEMORY_DEFAULT_ENABLED", "true").lower() == "true"
@@ -841,9 +846,146 @@ async def get_tts_info():
 
 
 # ---------------------------
+# Demo API Endpoints
+# ---------------------------
+@app.get("/api/models/tts")
+async def get_tts_models_api():
+    """Return available TTS models for the demo"""
+    models = []
+    current_model = "local"
+    
+    if TTS_PROVIDER == "deepinfra":
+        models = TTSDeepInfra.get_available_models()
+        current_model = DEEPINFRA_TTS_MODEL
+    else:
+        models = ["local"]
+        current_model = "local"
+    
+    return JSONResponse({
+        "models": models,
+        "current": current_model,
+        "provider": TTS_PROVIDER
+    })
+
+
+@app.get("/api/models/llm")
+async def get_llm_models_api():
+    """Return available LLM models for the demo"""
+    # Return a list of common models based on the provider
+    models = []
+    current_model = LLM_MODEL
+    
+    if OPENAI_BASE_URL and "fireworks" in OPENAI_BASE_URL.lower():
+        models = [
+            "accounts/fireworks/models/deepseek-v3",
+            "accounts/fireworks/models/llama-v3p3-70b-instruct",
+            "accounts/fireworks/models/qwen2p5-72b-instruct"
+        ]
+    elif OPENAI_BASE_URL and "ollama" in OPENAI_BASE_URL.lower():
+        models = ["llama3.2", "llama3.1", "mistral", "phi3"]
+    else:
+        # OpenAI
+        models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+    
+    return JSONResponse({
+        "models": models,
+        "current": current_model,
+        "provider": "openai" if not OPENAI_BASE_URL else "custom"
+    })
+
+
+from pydantic import BaseModel
+
+class ChatRequest(BaseModel):
+    message: str
+    llm_model: Optional[str] = None
+    tts_model: Optional[str] = None
+    conversation_history: Optional[List[Dict[str, str]]] = None
+
+
+@app.post("/api/chat")
+async def chat_api(request: ChatRequest):
+    """Handle chat request and return AI response"""
+    try:
+        # Build messages from conversation history
+        messages = []
+        if request.conversation_history:
+            for msg in request.conversation_history[-DEMO_CHAT_HISTORY_LIMIT:]:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if role in ["user", "assistant"]:
+                    messages.append({"role": role, "content": content})
+        
+        # Add current message
+        messages.append({"role": "user", "content": request.message})
+        
+        # Generate response using LLM
+        instructions = "You are a helpful, friendly AI assistant. Keep responses concise and engaging."
+        response_text = await asyncio.to_thread(
+            llm.generate,
+            instructions,
+            messages,
+            300,  # max tokens
+            0.7   # temperature
+        )
+        
+        return JSONResponse({
+            "success": True,
+            "response": response_text,
+            "model_used": LLM_MODEL
+        })
+    
+    except Exception as e:
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: Optional[str] = "af_heart"
+    tts_model: Optional[str] = None
+
+
+@app.post("/api/tts")
+async def tts_api(request: TTSRequest):
+    """Generate TTS audio for text"""
+    try:
+        # Generate audio
+        audio = await asyncio.to_thread(
+            tts.synth,
+            request.text,
+            request.voice
+        )
+        
+        # Convert to WAV base64
+        wav_b64 = b64e(float32_to_wav_bytes(audio, tts.sr))
+        
+        return JSONResponse({
+            "success": True,
+            "audio_b64": wav_b64,
+            "format": "wav",
+            "voice": request.voice
+        })
+    
+    except Exception as e:
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+
+# ---------------------------
 # Serve the UI
 # ---------------------------
 INDEX_HTML_PATH = os.path.join(os.path.dirname(__file__), "index.html")
+DEMO_DIST_PATH = os.path.join(os.path.dirname(__file__), "demo", "dist")
+DEMO_INDEX_PATH = os.path.join(DEMO_DIST_PATH, "index.html")
+
+# Mount static files for demo if dist exists
+if os.path.exists(DEMO_DIST_PATH):
+    app.mount("/demo/assets", StaticFiles(directory=os.path.join(DEMO_DIST_PATH, "assets")), name="demo-assets")
 
 @app.get("/")
 async def root():
@@ -851,3 +993,17 @@ async def root():
         with open(INDEX_HTML_PATH, "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
     return HTMLResponse("<h3>index.html not found next to main.py</h3>")
+
+
+@app.get("/demo")
+async def demo():
+    """Serve the retro messenger demo"""
+    if os.path.exists(DEMO_INDEX_PATH):
+        with open(DEMO_INDEX_PATH, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("""
+        <h3>Demo not found</h3>
+        <p>Please build the demo first:</p>
+        <pre>cd demo && npm install && npm run build</pre>
+        <p>Then restart the server.</p>
+    """)

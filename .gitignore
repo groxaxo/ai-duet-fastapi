@@ -94,3 +94,10 @@ test_server.py
 # Memory storage
 memories/
 *.mv2
+
+# Demo React app
+demo/node_modules/
+demo/dist/
+demo/.vite/
+demo/package-lock.json
+demo/yarn.lock

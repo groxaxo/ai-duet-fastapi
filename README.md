@@ -64,6 +64,7 @@ AI Duet enables two AI agents to have autonomous conversations while allowing us
 ### Prerequisites
 
 - Python 3.8+
+- Node.js 18+ and npm (for the retro messenger demo)
 - FFmpeg (for audio processing)
 - API keys (depending on provider choice):
   - OpenAI API key (for OpenAI LLM)
@@ -95,7 +96,34 @@ AI Duet enables two AI agents to have autonomous conversations while allowing us
    ```
 
 5. **Open the UI**:
-   Navigate to `http://localhost:8000` in your browser
+   - Main UI: Navigate to `http://localhost:8000` in your browser
+   - Retro Messenger Demo: Navigate to `http://localhost:8000/demo` (after building - see below)
+
+### Retro Messenger Demo
+
+The project includes a retro MSN Messenger-style demo (circa 2000) built with React:
+
+1. **Install demo dependencies**:
+   ```bash
+   cd demo
+   npm install
+   ```
+
+2. **Option A - Development mode** (hot reload):
+   ```bash
+   # From demo directory
+   npm run dev
+   # Opens at http://localhost:3000
+   ```
+
+3. **Option B - Production build** (served by FastAPI):
+   ```bash
+   # From demo directory
+   npm run build
+   # Then access at http://localhost:8000/demo
+   ```
+
+See [demo/README.md](demo/README.md) for more details about the retro messenger demo.
 
 ## Configuration
 
@@ -274,6 +302,70 @@ Connect to `ws://localhost:8000/ws/{session_id}`
 
 ### `GET /`
 Serves the web UI (index.html)
+
+### `GET /demo`
+Serves the retro MSN Messenger demo (if built)
+
+### Demo API Endpoints
+
+#### `GET /api/models/tts`
+Returns list of available TTS models for the demo
+```json
+{
+  "models": ["hexgrad/Kokoro-82M", "resemblyai/chatterbox-turbo", ...],
+  "current": "hexgrad/Kokoro-82M",
+  "provider": "deepinfra"
+}
+```
+
+#### `GET /api/models/llm`
+Returns list of available LLM models for the demo
+```json
+{
+  "models": ["gpt-4o-mini", "gpt-4o", ...],
+  "current": "gpt-4o-mini",
+  "provider": "openai"
+}
+```
+
+#### `POST /api/chat`
+Handle chat request and return AI response
+```json
+{
+  "message": "Hello!",
+  "llm_model": "gpt-4o-mini",
+  "conversation_history": [...]
+}
+```
+Response:
+```json
+{
+  "success": true,
+  "response": "Hi! How can I help you?",
+  "model_used": "gpt-4o-mini"
+}
+```
+
+#### `POST /api/tts`
+Generate TTS audio for text
+```json
+{
+  "text": "Hello world",
+  "voice": "af_heart",
+  "tts_model": "hexgrad/Kokoro-82M"
+}
+```
+Response:
+```json
+{
+  "success": true,
+  "audio_b64": "base64_encoded_wav_data",
+  "format": "wav",
+  "voice": "af_heart"
+}
+```
+
+### Main Application Endpoints
 
 ### `GET /voices`
 Returns list of available TTS voices for the current provider
