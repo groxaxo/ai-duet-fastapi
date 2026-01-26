@@ -280,10 +280,8 @@ class STTDeepInfraWhisper:
         self.api_key = api_key
         if api_key is None:
             warnings.warn(
-                "DeepInfra API key not provided. TTS will return silent audio."
+                "DeepInfra API key not provided. STT will fail."
             )
-        self.endpoint = "https://api.deepinfra.com/v1/inference/hexgrad/Kokoro-82M"
-        self.lang = lang
         self.model = model
         self.endpoint = "https://api.deepinfra.com/v1/openai/audio/transcriptions"
 
@@ -1041,9 +1039,6 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                     )
                     continue
                     
-                chunk = b64d(data["pcm16_b64"])
-                utterances = vad.push(chunk)
-                for utt in utterances:
                 pcm = b64d(data["pcm16_b64"])
                 for utt in vad.push(pcm):
                     session.cancel_speaking.set()
