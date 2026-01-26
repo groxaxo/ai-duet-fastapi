@@ -527,14 +527,7 @@ class Agent:
     instructions: str
     voice: str
     avatar: str = ""  # URL or emoji for avatar display
-
-
-@dataclass
-class Director:
-    instructions: str = ""
-    max_turns: int = 200
-    turn_length: str = "medium"  # short|medium|long
-    stop_phrase: str = ""
+    lang: str = "en"  # Language for the agent
 
 
 @dataclass
@@ -555,8 +548,6 @@ class Session:
     running: bool = False
     next_speaker: str = "A"
     cancel_speaking: asyncio.Event = field(default_factory=asyncio.Event)
-    director: Director = field(default_factory=Director)
-
     director: Director = field(default_factory=Director)
 
     # Memory
