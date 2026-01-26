@@ -528,6 +528,7 @@ class Agent:
     name: str
     instructions: str
     voice: str
+    avatar: str = ""  # URL or emoji for avatar display
 
 
 @dataclass
@@ -651,8 +652,8 @@ def get_or_create_session(session_id: str) -> Session:
     s = Session(
         session_id=session_id,
         agents={
-            "A": Agent("A", "Alice", "You are Alice. You are logical and precise.", "af_heart"),
-            "B": Agent("B", "Bob", "You are Bob. You are emotional and creative.", "am_michael"),
+            "A": Agent("A", "Alice", "You are Alice. You are logical and precise.", "af_heart", "🧠"),
+            "B": Agent("B", "Bob", "You are Bob. You are emotional and creative.", "am_michael", "🎨"),
         },
         director=Director(
             instructions="Keep it conversational, avoid repetition, and obey user interruptions immediately.",
@@ -886,9 +887,8 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         "instructions": a.instructions,
                         "voice": a.voice,
                         "lang": a.lang,
+                        "avatar": a.avatar,
                     }
-                "agents": {
-                    k: {"name": a.name, "instructions": a.instructions, "voice": a.voice}
                     for k, a in session.agents.items()
                 },
                 "director": {
@@ -943,6 +943,8 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         session.agents[agent_id].lang = data["lang"]
                     if "name" in data:
                         session.agents[agent_id].name = data["name"]
+                    if "avatar" in data:
+                        session.agents[agent_id].avatar = data["avatar"]
                     await ws.send_text(
                         json.dumps(
                             {"type": "ok", "what": "agent_updated", "agent": agent_id}
@@ -958,6 +960,7 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         name=data.get("name", f"Agent {agent_id}"),
                         instructions=data.get("instructions", "You are a helpful assistant."),
                         voice=data.get("voice", "am_adam"),
+                        avatar=data.get("avatar", "🤖"),
                         lang=data.get("lang", "en"),
                     )
                     await ws.send_text(
@@ -1073,6 +1076,8 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         session.agents[agent_id].instructions = str(data["instructions"])
                     if "voice" in data:
                         session.agents[agent_id].voice = str(data["voice"])
+                    if "avatar" in data:
+                        session.agents[agent_id].avatar = str(data["avatar"])
                     await ws.send_text(json.dumps({"type": "ok", "what": "agent_updated", "agent": agent_id}))
 
             elif mtype == "set_director":
