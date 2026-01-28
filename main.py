@@ -280,10 +280,8 @@ class STTDeepInfraWhisper:
         self.api_key = api_key
         if api_key is None:
             warnings.warn(
-                "DeepInfra API key not provided. TTS will return silent audio."
+                "DeepInfra API key not provided. STT will fail."
             )
-        self.endpoint = "https://api.deepinfra.com/v1/inference/hexgrad/Kokoro-82M"
-        self.lang = lang
         self.model = model
         self.endpoint = "https://api.deepinfra.com/v1/openai/audio/transcriptions"
 
@@ -528,14 +526,8 @@ class Agent:
     name: str
     instructions: str
     voice: str
-
-
-@dataclass
-class Director:
-    instructions: str = ""
-    max_turns: int = 200
-    turn_length: str = "medium"  # short|medium|long
-    stop_phrase: str = ""
+    avatar: str = ""  # URL or emoji for avatar display
+    lang: str = "en"  # Language for the agent
 
 
 @dataclass
@@ -556,8 +548,6 @@ class Session:
     running: bool = False
     next_speaker: str = "A"
     cancel_speaking: asyncio.Event = field(default_factory=asyncio.Event)
-    director: Director = field(default_factory=Director)
-
     director: Director = field(default_factory=Director)
 
     # Memory
@@ -651,8 +641,8 @@ def get_or_create_session(session_id: str) -> Session:
     s = Session(
         session_id=session_id,
         agents={
-            "A": Agent("A", "Alice", "You are Alice. You are logical and precise.", "af_heart"),
-            "B": Agent("B", "Bob", "You are Bob. You are emotional and creative.", "am_michael"),
+            "A": Agent("A", "Alice", "You are Alice. You are logical and precise.", "af_heart", "🧠"),
+            "B": Agent("B", "Bob", "You are Bob. You are emotional and creative.", "am_michael", "🎨"),
         },
         director=Director(
             instructions="Keep it conversational, avoid repetition, and obey user interruptions immediately.",
@@ -886,9 +876,8 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         "instructions": a.instructions,
                         "voice": a.voice,
                         "lang": a.lang,
+                        "avatar": a.avatar,
                     }
-                "agents": {
-                    k: {"name": a.name, "instructions": a.instructions, "voice": a.voice}
                     for k, a in session.agents.items()
                 },
                 "director": {
@@ -943,6 +932,8 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         session.agents[agent_id].lang = data["lang"]
                     if "name" in data:
                         session.agents[agent_id].name = data["name"]
+                    if "avatar" in data:
+                        session.agents[agent_id].avatar = data["avatar"]
                     await ws.send_text(
                         json.dumps(
                             {"type": "ok", "what": "agent_updated", "agent": agent_id}
@@ -958,6 +949,7 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         name=data.get("name", f"Agent {agent_id}"),
                         instructions=data.get("instructions", "You are a helpful assistant."),
                         voice=data.get("voice", "am_adam"),
+                        avatar=data.get("avatar", "🤖"),
                         lang=data.get("lang", "en"),
                     )
                     await ws.send_text(
@@ -1038,9 +1030,6 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                     )
                     continue
                     
-                chunk = b64d(data["pcm16_b64"])
-                utterances = vad.push(chunk)
-                for utt in utterances:
                 pcm = b64d(data["pcm16_b64"])
                 for utt in vad.push(pcm):
                     session.cancel_speaking.set()
@@ -1073,6 +1062,8 @@ async def ws_endpoint(ws: WebSocket, session_id: str):
                         session.agents[agent_id].instructions = str(data["instructions"])
                     if "voice" in data:
                         session.agents[agent_id].voice = str(data["voice"])
+                    if "avatar" in data:
+                        session.agents[agent_id].avatar = str(data["avatar"])
                     await ws.send_text(json.dumps({"type": "ok", "what": "agent_updated", "agent": agent_id}))
 
             elif mtype == "set_director":
